@@ -18,6 +18,7 @@ export interface RegisteredCommand extends SlashCommand {
 export const builtinCommands: SlashCommand[] = [
 	{name: '/help', description: 'Show commands and shortcuts'},
 	{name: '/model', description: 'Switch the model'},
+	{name: '/auth', description: 'Set API keys for your providers', args: '[provider]'},
 	{name: '/plan', description: 'Toggle plan mode, or plan a task', args: '[task]'},
 	{name: '/improve', description: 'Suggest improvements', args: '[focus]'},
 	{name: '/judge', description: 'Evaluate the last response'},

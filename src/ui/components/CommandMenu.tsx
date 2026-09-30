@@ -1,6 +1,16 @@
 import {Box, Text} from 'ink';
 import type {SlashCommand} from '../commands.js';
+import {windowStart} from '../layout.js';
 import {useTheme} from '../theme.js';
+import {ListRow} from './ListRow.js';
+import {Modal} from './Modal.js';
+
+export const MAX_MENU_ROWS = 8;
+
+/** Outer height of the menu for `count` matches. */
+export function menuHeight(count: number): number {
+	return Math.min(count, MAX_MENU_ROWS) + 2;
+}
 
 interface Props {
 	items: SlashCommand[];
@@ -8,36 +18,44 @@ interface Props {
 	width: number;
 }
 
+/** Slash-command completions, floating just above the prompt. */
 export function CommandMenu({items, selected, width}: Props) {
 	const {colors, symbols} = useTheme();
+	const rows = Math.min(items.length, MAX_MENU_ROWS);
+	const start = windowStart(items.length, rows, selected);
 	const nameWidth = Math.max(...items.map(c => `${c.name} ${c.args ?? ''}`.length)) + 2;
-	const showDescriptions = width >= nameWidth + 20;
+	const showDescriptions = width - 4 >= nameWidth + 12;
 
 	return (
-		<Box flexDirection="column" paddingX={2}>
-			{items.map((c, i) => {
-				const active = i === selected;
+		<Modal
+			title="Commands"
+			width={width}
+			footer={
+				<Text color={colors.muted}>
+					{symbols.keyTab} complete {symbols.dot} {symbols.keyEnter} run {symbols.dot} {selected + 1} of {items.length}
+				</Text>
+			}
+		>
+			{items.slice(start, start + rows).map((c, i) => {
+				const active = start + i === selected;
 				return (
-					<Box key={c.name}>
-						<Box width={2} flexShrink={0}>
-							<Text color={colors.primary}>{active ? symbols.pointer : ' '}</Text>
-						</Box>
+					<ListRow key={c.name} selected={active}>
 						<Box width={nameWidth} flexShrink={0}>
-							<Text color={active ? colors.primary : undefined} bold={active}>
+							<Text color={active ? colors.selectionText : colors.primary} bold={active}>
 								{c.name}
-								{c.args && <Text color={colors.muted}> {c.args}</Text>}
+								{c.args && <Text color={active ? colors.selectionText : colors.muted}> {c.args}</Text>}
 							</Text>
 						</Box>
 						{showDescriptions && (
 							<Box flexShrink={1}>
-								<Text color={colors.muted} wrap="truncate-end">
+								<Text color={active ? colors.selectionText : colors.muted} wrap="truncate-end">
 									{c.description}
 								</Text>
 							</Box>
 						)}
-					</Box>
+					</ListRow>
 				);
 			})}
-		</Box>
+		</Modal>
 	);
 }

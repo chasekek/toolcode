@@ -1,3 +1,4 @@
+import {getStoredKey} from './auth.js';
 import {openrouter} from './openrouter.js';
 import type {Provider} from './types.js';
 
@@ -18,13 +19,22 @@ export function getProvider(id: string): Provider | undefined {
 	return providers.find(p => p.id === id);
 }
 
+export type KeySource = 'env' | 'saved' | 'none' | 'not-needed';
+
+/** Where a provider's key comes from. The environment variable wins over a key saved with /auth. */
+export function keySource(provider: Provider): KeySource {
+	if (!provider.apiKeyEnv) return 'not-needed';
+	if (process.env[provider.apiKeyEnv]?.trim()) return 'env';
+	return getStoredKey(provider.id) ? 'saved' : 'none';
+}
+
 /**
  * The key to send, or undefined when the provider needs one that isn't set.
  * Providers without `apiKeyEnv` get an empty string: ready to use.
  */
 export function getApiKey(provider: Provider): string | undefined {
 	if (!provider.apiKeyEnv) return '';
-	return process.env[provider.apiKeyEnv]?.trim() || undefined;
+	return process.env[provider.apiKeyEnv]?.trim() || getStoredKey(provider.id);
 }
 
 export function hasApiKey(provider: Provider): boolean {

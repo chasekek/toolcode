@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import {Text} from 'ink';
-import {useTheme} from '../theme.js';
+import {gradientColors, useTheme} from '../theme.js';
 
 /** Advances every `ms` while mounted; shared by all animated indicators. */
 export function useTick(ms: number): number {
@@ -23,25 +23,30 @@ interface Props {
 	startedAt: number;
 }
 
-/** Status line under a streaming response: spinner, activity, elapsed time. */
+/**
+ * Spinner, activity and elapsed time. A highlight sweeps across the label so
+ * a long wait between tokens still looks alive.
+ */
 export function ActivityIndicator({label, startedAt}: Props) {
 	const {symbols, colors} = useTheme();
 	const tick = useTick(80);
-	const seconds = Math.floor((Date.now() - startedAt) / 1000);
-	// Gentle pulse on the ellipsis so the line feels alive between tokens.
-	const dots = symbols.ellipsis === '…' ? '…' : '.'.repeat((Math.floor(tick / 4) % 3) + 1);
+	const text = `${label}${symbols.ellipsis}`;
+	const chars = [...text];
+	// The sweep runs a little past both ends so it pauses between passes.
+	const sweep = (Math.floor(tick / 1.5) % (chars.length + 8)) - 4;
+	const [base, glow] = gradientColors([colors.accent, colors.selectionText], 2);
+	const seconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+	const elapsed = seconds < 60 ? `${seconds}s` : `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 
 	return (
 		<Text wrap="truncate-end">
 			<Text color={colors.accent}>{symbols.spinner[tick % symbols.spinner.length]} </Text>
-			<Text color={colors.accent}>
-				{label}
-				{dots}
-			</Text>
-			<Text color={colors.muted}>
-				{' '}
-				({seconds}s {symbols.dot} esc to interrupt)
-			</Text>
+			{chars.map((char, i) => (
+				<Text key={i} color={Math.abs(i - sweep) <= 1 ? glow : base}>
+					{char}
+				</Text>
+			))}
+			<Text color={colors.muted}> {elapsed}</Text>
 		</Text>
 	);
 }

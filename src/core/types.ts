@@ -9,6 +9,9 @@ export interface ToolCall {
 	/** Short result summary, e.g. "Read 86 lines". */
 	summary?: string;
 	output?: string;
+	/** Epoch ms, stamped by the UI as events arrive. */
+	startedAt?: number;
+	endedAt?: number;
 }
 
 export type Part = {type: 'text'; text: string} | {type: 'tool'; call: ToolCall};
@@ -39,12 +42,7 @@ export interface NoticeMessage {
 	text: string;
 }
 
-export interface HelpMessage {
-	id: string;
-	role: 'help';
-}
-
-export type Message = UserMessage | AssistantMessage | NoticeMessage | HelpMessage;
+export type Message = UserMessage | AssistantMessage | NoticeMessage;
 
 /** Events emitted by a streaming model response. */
 export type StreamEvent =
@@ -61,4 +59,6 @@ export interface Settings {
 	unicode: boolean;
 	expandTools: boolean;
 	simulateErrors: boolean;
+	/** Wheel scrolling and click-to-focus; terminals then need shift+drag to select text. */
+	mouse?: boolean;
 }

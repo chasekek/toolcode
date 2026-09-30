@@ -106,6 +106,7 @@ export default {
 - Leave out `apiKeyEnv` for local servers that need no key.
 - `headers` adds extra HTTP headers to every request.
 - Plugin models show up in `/model`. You can also pick one directly with `/model groq:llama-3.3-70b-versatile`.
+- Providers with an `apiKeyEnv` are listed in `/auth`, where users can paste a key instead of exporting the variable. Keys are saved per provider id in `~/.toolcode/auth.json`; the environment variable wins when both are set.
 - The model needs to support tool calling to edit files.
 
 ### llama.cpp (local models)
@@ -140,11 +141,57 @@ Yield `tool_call` events once each call is complete. TOOLCODE runs the tools and
 
 `category` is `tool`, `provider` or `command`. The catalog ships inside the package, so the marketplace never downloads code from the internet. Set `TOOLCODE_PLUGIN_DIR` to use a different plugins folder.
 
+The popup is filterable: `tab` or the left/right arrows move between **all**, **tool**, **provider**
+and **command**, and the number keys `1`-`4` jump straight to one. The entry under the cursor is
+described at the bottom of the popup; `enter` installs or uninstalls it and `esc` goes back.
+
+## Code judges
+
+Two bundled plugins check code with a **decision model** instead of a chat model. You describe
+the situation and define the legal answers; the model returns a probability for each one. There is no
+prose to parse, and an answer it cannot fill in is never read as approval.
+
+Both send the identical state and the same four typed questions — `correct` and `safe_to_run`
+(yes/no), `worst_issue` (0–4) and `verdict` (ship / fix / rewrite / ask) — and both gate on
+`correct >= 0.8` and `safe_to_run >= 0.7`.
+
+| | [`jevjudge.js`](plugins/tools/jevjudge.js) | [`jeffjudge.js`](plugins/tools/jeffjudge.js) |
+|---|---|---|
+| Model | JEV `jev-1.13-free` on [BeatAPI](https://beatapi.io/jev-api) | [Jeff](https://huggingface.co/mstrasser/Jeff-Qwen3.5-0.8B) on your machine |
+| Needs | A free BeatAPI key | llama.cpp or Ollama |
+| Code leaves the machine | Yes | No |
+| Cost | Free, one successful request per minute | Local |
+
+Install either from `/marketplace`, or `toolcode --plugin plugins`.
+
+**jevjudge** is the default. Get a key at <https://dashboard.beatapi.io> and either export
+`BEATAPI_API_KEY` or run `/jevjudge setup <key>`. The free tier allows one successful request per
+minute; over that the API answers `429` and the tool says so instead of retrying. If the call fails,
+or the key is missing, a configured local Jeff model answers instead, so you still get a verdict.
+
+The key is stored in `~/.toolcode/plugins/.jevjudge.json`, never in the plugin file, so it does not
+ship with the package and never lands in a repository. Set `BEATAPI_URL` or `BEATAPI_JEV_MODEL` to
+point somewhere else.
+
+**jeffjudge** keeps everything local. Run `/jeffjudge setup` and pick the runtime (Ollama or
+llama.cpp) and the model size: **Jeff-Qwen3.5-0.8B** (1.7 GB) for low-RAM machines, or
+**Jeff-Qwen3.5-2B** (4.2 GB) on a decent one. `/jeffjudge status` prints the conversion and start
+commands for whichever you chose. Upstream ships safetensors plus a separate decision head, and both
+runtimes serve GGUF, so the converted model answers in strict JSON mode rather than emitting the
+head's class probabilities; the questions and thresholds are the same either way. For the real head,
+run `jeff-serve` from [firelex/jeff](https://github.com/firelex/jeff).
+
+Both tools are read-only, so they also run in plan mode, `/improve` and `/judge`. Neither is
+required: each loads and lists in `/plugins` whether or not it is set up, and reports that it is
+unconfigured only when you actually call it. Settings live beside the plugins in
+`~/.toolcode/plugins/.jevjudge.json` and `.jeffjudge.json`, not in `/auth`.
+
 ## More
 
 - **Types:** if you write plugins in TypeScript or want autocomplete, `import {definePlugin} from '@chasekek/toolcode/plugin'` and wrap your export in it. Doing this is optional.
 - **Setup code:** `export default` can also be a function (async is fine) that returns the plugin, which is useful for setup work.
 - **Folders:** a plugin can be a folder with an `index.js`. A folder without one is a grouping folder, so you can sort plugins into `~/.toolcode/plugins/providers/` and `~/.toolcode/plugins/tools/`. Files and folders starting with `.` or `_` are ignored.
 - **Errors:** a plugin that throws while loading is skipped, and the error is shown when TOOLCODE starts. It never stops the app.
+- **Logging:** TOOLCODE draws the whole terminal, so `console.log`, `console.warn` and `console.error` from a plugin appear as notices in the conversation rather than on the screen.
 
 > **Security:** plugins are ordinary code and run with your permissions. Only install plugins you trust. TOOLCODE doesn't load plugins from the project folder automatically, so cloning a repo can't run code on your machine.

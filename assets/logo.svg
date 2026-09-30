@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="toolcode">
+	<title>toolcode</title>
+	<defs>
+		<!-- Brand gradient: theme.tsx colors.gradient -->
+		<linearGradient id="tcGrad" x1="0" y1="0" x2="1" y2="1">
+			<stop offset="0%" stop-color="#7aa2f7"/>
+			<stop offset="50%" stop-color="#bb9af7"/>
+			<stop offset="100%" stop-color="#f7768e"/>
+		</linearGradient>
+	</defs>
+
+	<!-- Tile -->
+	<rect width="512" height="512" rx="112" fill="#1a1b26"/>
+	<rect x="4" y="4" width="504" height="504" rx="108" fill="none" stroke="#414868" stroke-width="8"/>
+
+	<!-- Terminal window -->
+	<rect x="104" y="136" width="304" height="240" rx="24" fill="#16161e" stroke="#414868" stroke-width="8"/>
+	<path d="M104 196 H408" stroke="#414868" stroke-width="8"/>
+
+	<!-- Title bar dots -->
+	<circle cx="140" cy="166" r="11" fill="#f7768e"/>
+	<circle cx="176" cy="166" r="11" fill="#e0af68"/>
+	<circle cx="212" cy="166" r="11" fill="#9ece6a"/>
+
+	<!-- Prompt chevron + cursor block -->
+	<path d="M148 252 L184 292 L148 332" fill="none" stroke="url(#tcGrad)" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+	<rect x="216" y="272" width="34" height="40" rx="7" fill="url(#tcGrad)"/>
+</svg>

@@ -55,12 +55,12 @@ function applyEvent(draft: AssistantMessage, event: StreamEvent) {
 			break;
 		}
 		case 'tool_start':
-			draft.parts.push({type: 'tool', call: {...event.call, status: 'running'}});
+			draft.parts.push({type: 'tool', call: {...event.call, status: 'running', startedAt: Date.now()}});
 			break;
 		case 'tool_end':
 			for (const part of draft.parts) {
-				if (part.type === 'tool' && part.call.id === event.id) {
-					Object.assign(part.call, {status: event.status, summary: event.summary, output: event.output});
+				if (part.type === 'tool' && part.call.id === event.id && part.call.status === 'running') {
+					Object.assign(part.call, {status: event.status, summary: event.summary, output: event.output, endedAt: Date.now()});
 				}
 			}
 			break;
@@ -68,8 +68,9 @@ function applyEvent(draft: AssistantMessage, event: StreamEvent) {
 }
 
 /**
- * Conversation state. Finished turns live in `history` (printed once via
- * <Static>); the current turn lives in `live` and re-renders while streaming.
+ * Conversation state. Finished turns live in `history`, the current turn in
+ * `live`; only `live` changes while a reply streams, so memoized views of
+ * older messages are left alone.
  */
 export function useChat({provider, apiKey, model, simulateErrors}: Options) {
 	const [state, setState] = useState<{history: Message[]; live: Message[]}>({history: [], live: []});
@@ -171,7 +172,7 @@ export function useChat({provider, apiKey, model, simulateErrors}: Options) {
 				}
 				for (const part of draft.parts) {
 					if (part.type === 'tool' && part.call.status === 'running') {
-						Object.assign(part.call, {status: 'error', summary: 'Cancelled'});
+						Object.assign(part.call, {status: 'error', summary: 'Cancelled', endedAt: Date.now()});
 					}
 				}
 			} finally {
@@ -209,10 +210,6 @@ export function useChat({provider, apiKey, model, simulateErrors}: Options) {
 		}));
 	}, []);
 
-	const showHelp = useCallback(() => {
-		setState(s => ({...s, live: [...s.live, {id: nextId(), role: 'help'}]}));
-	}, []);
-
 	const clear = useCallback(() => {
 		abortRef.current?.abort();
 		modelHistory.current = [];
@@ -236,7 +233,6 @@ export function useChat({provider, apiKey, model, simulateErrors}: Options) {
 		retry,
 		notify,
 		commandReply,
-		showHelp,
 		clear,
 		hasLastRequest: () => lastRequest.current !== null,
 		lastAssistant,

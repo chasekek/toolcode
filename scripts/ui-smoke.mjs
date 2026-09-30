@@ -1,15 +1,21 @@
 import React from 'react';
 import {EventEmitter} from 'node:events';
+import {mkdtempSync, rmSync, writeFileSync} from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {render} from 'ink';
 import {App} from '../dist/ui/App.js';
 import {loadPlugins} from '../dist/plugins/loader.js';
-
+// The app scrapes the OpenRouter catalog on mount; frames here must not depend on it.
+process.env.TOOLCODE_NO_MODEL_SCRAPE ??= '1';
 const width = Number(process.argv[2] ?? 90);
 const scenario = process.argv[3] ?? 'main';
+const height = Number(process.argv[4] ?? 40);
 const wait = (ms = 80) => new Promise(r => setTimeout(r, ms));
 class Out extends EventEmitter {
-	columns = width; rows = 50; frame = ''; isTTY = true;
-	write(s) { if (!s.startsWith('\x1b[2J')) this.frame = s; return true; }
+	columns = width; rows = height; frame = ''; isTTY = true;
+	// Screen clears and terminal modes (mouse reporting) are not frames.
+	write(s) { if (!s.startsWith('\x1b[2J') && !s.startsWith('\x1b[?')) this.frame = s; return true; }
 }
 class In extends EventEmitter {
 	isTTY = true; data = [];
@@ -18,13 +24,30 @@ class In extends EventEmitter {
 	write(s) { this.data.push(s); this.emit('readable'); }
 }
 const stdout = new Out(), stdin = new In();
-const pluginPaths = {plugins: ['plugins', 'missing-plugin.js'], agent: ['test/fixtures/scripted-provider.mjs'], 'agent-skip': ['test/fixtures/scripted-provider.mjs']}[scenario];
-const plugins = pluginPaths ? await loadPlugins(pluginPaths, {builtinDir: false}) : undefined;
+const workspace = ['panels', 'scroll', 'mouse', 'narrow'].includes(scenario);
+const pluginPaths = {
+	plugins: ['plugins', 'missing-plugin.js'],
+	agent: ['test/fixtures/scripted-provider.mjs'],
+	'agent-skip': ['test/fixtures/scripted-provider.mjs'],
+	...(workspace && {[scenario]: ['test/fixtures/workspace-provider.mjs']}),
+}[scenario];
+const plugins = pluginPaths ? await loadPlugins(pluginPaths.map(p => path.resolve(p)), {builtinDir: false}) : undefined;
+// The workspace provider writes files: give it a scratch directory with a file to delete.
+let scratch;
+if (workspace) {
+	scratch = mkdtempSync(path.join(os.tmpdir(), 'toolcode-smoke-'));
+	writeFileSync(path.join(scratch, 'legacy.js'), 'module.exports = {};\n');
+	process.chdir(scratch);
+}
 const settings = {unicode: scenario !== 'ascii', expandTools: false, simulateErrors: scenario === 'error'};
 const app = render(React.createElement(App, {initialSettings: settings, plugins}), {stdout, stdin, debug: true, exitOnCtrlC: false, patchConsole: false});
 const type = async s => { for (const c of s) { stdin.write(c); await wait(10); } await wait(); };
 const key = async (k, ms = 80) => { stdin.write(k); await wait(ms); };
 const show = t => console.log(`\n===== ${t}\n` + stdout.frame);
+/** 0-based row of the first frame line containing `text`. */
+const rowOf = text => stdout.frame.split('\n').findIndex(line => line.includes(text));
+/** SGR mouse report for a 0-based cell. */
+const mouse = (code, x, y, release = false) => `\x1b[<${code};${x + 1};${y + 1}${release ? 'm' : 'M'}`;
 await wait();
 
 if (scenario === 'plugins') {
@@ -40,12 +63,24 @@ if (scenario === 'plugins') {
 	await type('build it'); await key('\r', 300);
 	await key('\x1b', 300); show('skipped');
 } else if (scenario === 'marketplace') {
-	await type('/marketplace'); await key('\r'); show('marketplace');
-	await key('\r', 400); show('installed');
-	await key('\x1b'); await type('/hel'); show('menu');
-	await type('loworld'); await key('\r', 200); show('hello');
-	await type('/marketplace'); await key('\r'); await key('\r', 300); show('uninstalled');
-	await key('\x1b'); await type('/helloworld'); await key('\r', 200); show('after uninstall');
+	// The screen renders on its own, so every step waits long enough for the frame to
+	// settle; shorter waits made this scenario race the install/uninstall.
+	await type('/marketplace'); await key('\r', 400); show('marketplace');
+	await key('\t', 300); show('filter tools');
+	await key('3', 300); show('filter providers');
+	await key('1', 300);
+	await key('\r', 600); show('installed');
+	await key('\x1b', 400); await type('/hel'); show('menu');
+	await type('loworld'); await key('\r', 400); show('hello');
+	await type('/marketplace'); await key('\r', 400); await key('\r', 600); show('uninstalled');
+	await key('\x1b', 400); await type('/helloworld'); await key('\r', 400); show('after uninstall');
+} else if (scenario === 'auth') {
+	await type('/auth'); await key('\r'); show('auth list');
+	await key('\r'); await type('sk-or-secret'); show('auth typing');
+	await key('\r'); show('auth saved');
+	// "/auth <provider>" opens straight into key entry; esc backs out to the list.
+	await type('/auth openrouter'); await key('\r'); await key('\x1b'); await key('d'); show('auth removed');
+	await key('\x1b'); await type('/auth nope'); await key('\r'); show('auth unknown');
 } else if (scenario === 'main') {
 	await type('/'); show('slash menu');
 	await type('pl'); await key('\t'); show('tab complete /pl');
@@ -79,9 +114,45 @@ if (scenario === 'plugins') {
 	await key('\x1b[Z'); await key('\x03'); await key('\x03', 200); console.log('\nexited cleanly after double ctrl+c');
 } else if (scenario === 'ascii') {
 	await type('hi'); await key('\r', 5000); show('ascii done');
+} else if (scenario === 'panels') {
+	// Tab from an empty prompt walks the panels; digits jump; the main panel follows the focus.
+	await type('build a server'); await key('\r', 800); show('built');
+	await key('\t'); show('focus chat');
+	await key('\t'); show('focus session');
+	await key('2'); show('focus todos');
+	await key('3'); show('focus files');
+	await key('j'); show('next file');
+	await key('4'); show('focus tools');
+	await key('k'); show('previous tool');
+	await key('\x1b'); show('back to prompt');
+} else if (scenario === 'scroll') {
+	await type('build a server'); await key('\r', 800); show('pinned');
+	await key('\x1b[5~'); show('page up');
+	for (let i = 0; i < 8; i++) await key('\x1b[5~', 30);
+	show('top');
+	await key('\x1b[6~'); show('page down');
+	for (let i = 0; i < 8; i++) await key('\x1b[6~', 30);
+	show('bottom again');
+} else if (scenario === 'mouse') {
+	await type('build a server'); await key('\r', 800);
+	// The first visible row of Files; unfocused, it shows the newest change (the deleted legacy.js).
+	const files = rowOf('─Files');
+	await key(mouse(0, 4, files + 1)); await key(mouse(0, 4, files + 1, true)); show('clicked file');
+	await key(mouse(0, width - 10, 4)); show('clicked chat');
+	await key(mouse(64, width - 10, 6)); await key(mouse(64, width - 10, 6)); show('wheel up');
+	await key(mouse(0, 10, rowOf('─Prompt') + 1)); show('clicked prompt');
+	await type('typed after click'); show('typing works');
+} else if (scenario === 'narrow') {
+	await type('build a server'); await key('\r', 800); show('narrow');
+	stdout.columns = 40; stdout.emit('resize'); await wait(200); show('narrowest');
+	stdout.rows = 11; stdout.emit('resize'); await wait(200); show('too small');
 } else {
 	await type('do it'); await key('\r', 4000); show('after run');
 	await type('/retry'); await key('\r', 300); show('retrying');
 }
 app.unmount();
+if (scratch) {
+	process.chdir(os.tmpdir());
+	rmSync(scratch, {recursive: true, force: true});
+}
 process.exit(0);

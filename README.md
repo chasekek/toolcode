@@ -1,3 +1,7 @@
+<p align="center">
+	<img src="assets/banner.svg" alt="toolcode" width="640">
+</p>
+
 # toolcode
 my first, very vibecoded, tui coding harness, that soon will be very cool probably
 ## what is toolcode and whats the purpose

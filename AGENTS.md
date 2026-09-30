@@ -45,8 +45,15 @@ CLI flags (src/cli.tsx)
   Registration mutates global runtime state; both export `unregister*` for test cleanup.
 - The UI **never** calls tools. It only consumes `StreamEvent`s and reads back `session.todos`.
   Tools reach the UI by mutating `ctx.session.todos` or awaiting `ctx.ask`.
-- Completed turns render inside Ink's `<Static>` so they scroll back permanently. Redrawing
-  history after a clear requires bumping the `epoch` counter in `src/ui/App.tsx`.
+- The UI is **full screen** (lazygit-style panels on the alternate screen, entered and left in
+  `src/cli.tsx`). There is no `<Static>` or terminal scrollback: the conversation scrolls inside
+  the Chat panel (`ChatView`), pinned to the bottom until the user scrolls up. Geometry comes from
+  the pure `computeLayout()` in `src/ui/layout.ts`; the frame is `rows - 1` tall because Ink
+  clears and repaints the whole screen every frame once output fills the terminal.
+- Ink delivers keys outside React's event system and React 19 defers the resulting renders, so
+  two keys in one tick see the same state. Key handlers go through `useKeys` (latest handler),
+  and anything a handler builds on (editor text, scroll offsets, list selections) lives in
+  `useSyncState` so it can be read back immediately.
 
 ## Key Directories
 
@@ -55,7 +62,7 @@ CLI flags (src/cli.tsx)
 | `src/core/` | Agent loop (`agent.ts`), todo DAG (`todos.ts`), prompts (`prompts.ts`), workspace scan (`workspace.ts`), abort (`abort.ts`), shared types (`types.ts`) |
 | `src/providers/` | `Provider` contract, registry, `openrouter.ts`, generic SSE client `openaiCompatible.ts`, offline `demo.ts` |
 | `src/tools/` | Built-in tools (`readFile`, `writeFile`, `deleteFile`, `todoWrite`, `ask`), `registry.ts`, path safety `paths.ts` |
-| `src/ui/` | Ink app. `App.tsx`, `theme.tsx`, `editor.ts` (pure text buffer), `commands.ts` (slash commands), `components/` (15 components), `hooks/` |
+| `src/ui/` | Ink app. `App.tsx`, `theme.tsx`, `layout.ts` (screen geometry), `activity.ts` (tool calls, changed files), `highlight.ts` (syntax colors), `mouse.ts` (SGR reports), `console.ts` (plugin logs to notices), `editor.ts` (pure text buffer), `commands.ts` (slash commands), `components/`, `hooks/` |
 | `src/plugins/` | `loader.ts` (discovery + dynamic import), `normalize.ts` (validation/defaults), `types.ts` |
 | `test/` | `*.test.mjs` — Node native runner, imports from `dist/` |
 | `scripts/` | `ui-smoke.mjs` — headless TTY harness driving Ink with mock streams |
@@ -75,8 +82,10 @@ npm run smoke                # builds first, then headless UI smoke (default 'ma
 # Single test file (build is mandatory — tests import ../dist/*)
 npm run build && node --test test/todos.test.mjs
 
-# Named smoke scenario; first arg is terminal width
-node scripts/ui-smoke.mjs 90 agent      # main | plugins | agent | agent-skip | overlays | edge | ascii | error
+# Named smoke scenario; args are terminal width, scenario, terminal height (default 40)
+node scripts/ui-smoke.mjs 100 panels 30
+# main | plugins | agent | agent-skip | overlays | edge | ascii | error | marketplace | auth
+# panels | scroll | mouse | narrow   (these four run the workspace fixture in a scratch dir)
 
 # Try the bundled example plugins
 node dist/cli.js --plugin plugins
@@ -111,7 +120,15 @@ surrounding style by hand.
   `FLUSH_MS = 32` timer in `useChat.ts` — extend that path rather than adding per-token renders.
 - **Theming**: never hardcode colors or glyphs. Use
   `const {colors, symbols, borderStyle} = useTheme()`; it already switches Unicode ↔ ASCII for
-  `--ascii`. For width-sensitive text use `useTerminalWidth()` and `truncateMiddle()`.
+  `--ascii`. Colors are hex accents only; body text keeps the terminal's foreground so light
+  themes stay readable, and a selected row always pairs `colors.selection` with
+  `colors.selectionText`. For width-sensitive text use `useTerminalSize()` and the helpers in
+  `src/ui/text.ts` (`truncateMiddle`, `expandTabs`: tabs must never reach the screen).
+- **Panels and popups**: build on `Panel` (title and `[n]` in the top border, count in the
+  bottom one, scrollbar on the right border) and `Modal` + `Overlay` (opaque, centered or
+  pinned). Popups go at the end of `App`'s tree, since later siblings paint over earlier ones.
+  Ink only re-applies changed styles, so a Box with partial borders must be remounted (see the
+  `key` in `Panel`) when its `borderStyle` changes.
 
 ### Adding a tool
 
@@ -148,9 +165,11 @@ Plugin tools should guard `if (ctx.ask)` — it is undefined outside the interac
 | `src/providers/types.ts` | `Provider`, `CompletionRequest`, `ProviderEvent`, `ChatMessage`. |
 | `src/providers/openaiCompatible.ts` | Generic SSE streaming client + tool-call fragment aggregation. |
 | `src/plugins/loader.ts` | Discovery paths, dynamic import, per-plugin error isolation. |
-| `src/ui/App.tsx` | Layout composition, global keybindings, overlay state, `epoch` scrollback control. |
+| `src/ui/App.tsx` | Layout composition, focus (prompt, Chat `[0]`, side panels `[1]`–`[4]`), global keys and mouse, popups, chat and detail scrolling. |
+| `src/ui/layout.ts` | Pure screen geometry: sidebar breakpoint, side panel heights, list windows. |
 | `src/ui/hooks/useChat.ts` | Conversation state, abort controllers, batched streaming, `ask` bridging. |
-| `src/ui/theme.tsx` | Color/symbol tokens, `detectUnicode()`. |
+| `src/ui/hooks/usePrompt.ts` | The prompt editor and slash menu; rendering is left to `App` so the menu can float. |
+| `src/ui/theme.tsx` | Color/symbol/box-drawing tokens, the brand gradient, `detectUnicode()`. |
 | `src/plugin.ts` | Public `definePlugin` / `defineTool` / `defineProvider` helpers (`@chasekek/toolcode/plugin`). |
 | `PLUGINS.md` | Authoritative plugin authoring guide. |
 
@@ -182,10 +201,15 @@ Plugin tools should guard `if (ctx.ask)` — it is undefined outside the interac
   asks two questions, writes todos, then echoes answers — used by the UI smoke tests.
 - **Covered**: filesystem tools and path-traversal rejection, plan-mode restrictions, the todo DAG
   (cycles, blocking, cross-turn state), plugin loading and failure isolation, and the `ask` tool.
-- **UI has no unit tests.** The 15 components and both hooks are verified only by
-  `scripts/ui-smoke.mjs`, which renders `<App>` against mock `EventEmitter` stdin/stdout and prints
-  frame blocks; `test/ui.test.mjs` shells out to it and regex-matches stdout. To change UI, run
-  `npm run smoke` and check the relevant scenario, and add a scenario there rather than a component
-  test.
+- **UI components have no unit tests.** They and the hooks are verified by `scripts/ui-smoke.mjs`,
+  which renders `<App>` against mock `EventEmitter` stdin/stdout and prints full-screen frames;
+  `test/ui.test.mjs` shells out to it and regex-matches stdout. To change UI, run the relevant
+  scenario and add a scenario there rather than a component test. The pure helpers (`layout.ts`,
+  `activity.ts`, `mouse.ts`, `highlight.ts`) are unit-tested in `test/layout.test.mjs`.
+- **Fixture `test/fixtures/workspace-provider.mjs`** plans with todos, creates, edits and deletes
+  files, then answers at length; the smoke harness runs it in a scratch directory for the
+  `panels`, `scroll`, `mouse` and `narrow` scenarios.
+- Smoke frames come from Ink's debug mode. Ink's `incrementalRendering` option draws full-height
+  frames one row off, so leave it off.
 - **No coverage tooling** is configured. Add a case when a change introduces a plausible bug in an
   existing behavior; do not add tests that merely restate the implementation.

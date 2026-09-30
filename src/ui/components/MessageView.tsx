@@ -1,10 +1,10 @@
-import type {ReactNode} from 'react';
+import {memo, type ReactNode} from 'react';
 import {Box, Text} from 'ink';
 import type {AssistantMessage, Message, NoticeMessage} from '../../core/types.js';
+import {expandTabs} from '../text.js';
 import {useTheme} from '../theme.js';
 import {Markdown} from './Markdown.js';
 import {ToolCallView} from './ToolCallView.js';
-import {HelpView} from './HelpView.js';
 
 /** A marker in a fixed-width gutter so wrapped lines stay aligned with the text. */
 function Gutter({children}: {children: ReactNode}) {
@@ -38,9 +38,9 @@ function AssistantView({message, expandTools}: {message: AssistantMessage; expan
 				part.type === 'text' ? (
 					<Box key={i}>
 						<Gutter>
-							<Text>{symbols.bullet}</Text>
+							<Text color={colors.accent}>{symbols.bullet}</Text>
 						</Gutter>
-						<Box flexShrink={1}>
+						<Box flexShrink={1} flexGrow={1}>
 							<Markdown text={part.text} />
 						</Box>
 					</Box>
@@ -49,9 +49,12 @@ function AssistantView({message, expandTools}: {message: AssistantMessage; expan
 				),
 			)}
 			{message.status === 'interrupted' && (
-				<Box paddingLeft={2}>
+				<Box>
+					<Gutter>
+						<Text color={colors.warning}>{symbols.elbow}</Text>
+					</Gutter>
 					<Text color={colors.warning}>
-						{symbols.elbow}  Interrupted {symbols.dot} <Text color={colors.muted}>what should TOOLCODE do instead?</Text>
+						Interrupted {symbols.dot} <Text color={colors.muted}>what should TOOLCODE do instead?</Text>
 					</Text>
 				</Box>
 			)}
@@ -63,7 +66,7 @@ function AssistantView({message, expandTools}: {message: AssistantMessage; expan
 function NoticeView({message}: {message: NoticeMessage}) {
 	const {colors, symbols} = useTheme();
 	const style = {
-		info: {icon: symbols.info, color: colors.muted},
+		info: {icon: symbols.info, color: colors.info},
 		success: {icon: symbols.check, color: colors.success},
 		warning: {icon: symbols.warning, color: colors.warning},
 		error: {icon: symbols.cross, color: colors.error},
@@ -74,7 +77,7 @@ function NoticeView({message}: {message: NoticeMessage}) {
 				<Text color={style.color}>{style.icon}</Text>
 			</Gutter>
 			<Box flexShrink={1}>
-				<Text color={message.level === 'info' ? colors.muted : undefined}>{message.text}</Text>
+				<Text color={message.level === 'info' ? colors.muted : undefined}>{expandTabs(message.text)}</Text>
 			</Box>
 		</Box>
 	);
@@ -85,7 +88,8 @@ interface Props {
 	expandTools: boolean;
 }
 
-export function MessageView({message, expandTools}: Props) {
+/** One entry in the transcript. Memoized: only the streaming reply re-renders. */
+export const MessageView = memo(function MessageView({message, expandTools}: Props) {
 	const {colors, symbols} = useTheme();
 
 	let body: ReactNode;
@@ -94,10 +98,12 @@ export function MessageView({message, expandTools}: Props) {
 			body = (
 				<Box>
 					<Gutter>
-						<Text color={colors.muted}>{symbols.prompt}</Text>
+						<Text color={colors.primary} bold>
+							{symbols.prompt}
+						</Text>
 					</Gutter>
 					<Box flexShrink={1}>
-						<Text color={colors.muted}>{message.text}</Text>
+						<Text bold>{expandTabs(message.text)}</Text>
 					</Box>
 				</Box>
 			);
@@ -109,16 +115,11 @@ export function MessageView({message, expandTools}: Props) {
 		case 'notice':
 			body = <NoticeView message={message} />;
 			break;
-		case 'help':
-			body = <HelpView />;
-			break;
 	}
 
 	return (
-		<Box marginTop={1} paddingX={1}>
-			<Box flexDirection="column" flexGrow={1}>
-				{body}
-			</Box>
+		<Box marginTop={1} flexDirection="column">
+			{body}
 		</Box>
 	);
-}
+});

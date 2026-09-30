@@ -1,8 +1,13 @@
 import {useState} from 'react';
-import {Box, Text, useInput} from 'ink';
+import {Box, Text} from 'ink';
+import {useKeys} from '../hooks/useKeys.js';
+import {useSyncState} from '../hooks/useSyncState.js';
 import type {AskQuestion} from '../../tools/types.js';
 import * as editor from '../editor.js';
+import {isMouseInput} from '../mouse.js';
 import {useTheme} from '../theme.js';
+import {ListRow} from './ListRow.js';
+import {Modal} from './Modal.js';
 
 const MAX_CONTEXT_LINES = 12;
 
@@ -18,7 +23,7 @@ interface Props {
  * or a number, or choose "Type an answer" to write your own.
  */
 export function AskPanel({questions, width, onDone}: Props) {
-	const {colors, symbols, borderStyle} = useTheme();
+	const {colors, symbols} = useTheme();
 	const [index, setIndex] = useState(0);
 	const [answers, setAnswers] = useState<string[]>([]);
 	const question = questions[index]!;
@@ -27,7 +32,7 @@ export function AskPanel({questions, width, onDone}: Props) {
 	const [cursor, setCursor] = useState(initialCursor);
 	// With no options the only way to answer is typing.
 	const [typing, setTyping] = useState(options.length === 0);
-	const [draft, setDraft] = useState(editor.emptyEditor);
+	const [draft, setDraft, readDraft] = useSyncState(editor.emptyEditor);
 	const rows = options.length + 1; // options + "Type an answer"
 
 	const submit = (answer: string) => {
@@ -42,9 +47,11 @@ export function AskPanel({questions, width, onDone}: Props) {
 		setDraft(editor.emptyEditor);
 	};
 
-	useInput((input, key) => {
+	useKeys((input, key) => {
+		if (isMouseInput(input)) return;
 		if (key.ctrl && input === 'c') return onDone(null);
 		if (typing) {
+			const draft = readDraft();
 			if (key.escape) return options.length > 0 ? setTyping(false) : onDone(null);
 			if (key.return) return draft.value.trim() && submit(draft.value.trim());
 			if (key.leftArrow) return setDraft(editor.moveLeft(draft));
@@ -56,8 +63,8 @@ export function AskPanel({questions, width, onDone}: Props) {
 			return;
 		}
 		if (key.escape) return onDone(null);
-		if (key.upArrow) return setCursor(c => (c - 1 + rows) % rows);
-		if (key.downArrow || key.tab) return setCursor(c => (c + 1) % rows);
+		if (key.upArrow || input === 'k') return setCursor(c => (c - 1 + rows) % rows);
+		if (key.downArrow || input === 'j' || key.tab) return setCursor(c => (c + 1) % rows);
 		const pick = (i: number) => (i < options.length ? submit(options[i]!) : setTyping(true));
 		if (key.return) return pick(cursor);
 		const digit = Number.parseInt(input, 10);
@@ -68,20 +75,32 @@ export function AskPanel({questions, width, onDone}: Props) {
 	const hiddenContext = contextLines.length - MAX_CONTEXT_LINES;
 
 	return (
-		<Box flexDirection="column" borderStyle={borderStyle} borderColor={colors.accent} paddingX={1} width={width}>
-			<Text wrap="wrap">
-				{questions.length > 1 && (
+		<Modal
+			title="Question"
+			width={width}
+			status={
+				questions.length > 1 && (
 					<Text color={colors.muted}>
-						{index + 1}/{questions.length}{' '}
+						{index + 1}/{questions.length}
 					</Text>
-				)}
-				<Text bold>{question.question}</Text>
+				)
+			}
+			footer={
+				<Text color={colors.muted}>
+					{typing
+						? `${symbols.keyEnter} submit ${symbols.dot} esc ${options.length > 0 ? 'back to options' : 'skip'}`
+						: `${symbols.arrowUpDown} move ${symbols.dot} ${symbols.keyEnter} select ${symbols.dot} 1-${rows} pick ${symbols.dot} esc skip`}
+				</Text>
+			}
+		>
+			<Text bold wrap="wrap">
+				{question.question}
 			</Text>
 			{contextLines.length > 0 && (
 				<Box flexDirection="column" marginTop={1}>
 					{contextLines.slice(0, MAX_CONTEXT_LINES).map((line, i) => (
 						<Text key={i} color={colors.muted} wrap="truncate-end">
-							{symbols.bar} {line}
+							<Text color={colors.accent}>{symbols.bar}</Text> {line}
 						</Text>
 					))}
 					{hiddenContext > 0 && (
@@ -95,12 +114,14 @@ export function AskPanel({questions, width, onDone}: Props) {
 				{options.map((option, i) => {
 					const active = !typing && i === cursor;
 					return (
-						<Text key={i} wrap="truncate-end" color={active ? colors.accent : undefined} bold={active}>
-							{active ? `${symbols.pointer} ` : '  '}
-							<Text color={colors.muted}>{i + 1}. </Text>
-							{option}
-							{option === question.recommended && <Text color={colors.success}> (recommended)</Text>}
-						</Text>
+						<ListRow key={i} selected={active}>
+							<Text wrap="truncate-end" color={active ? colors.selectionText : undefined} bold={active}>
+								{active ? `${symbols.pointer} ` : '  '}
+								<Text color={active ? colors.selectionText : colors.muted}>{i + 1}. </Text>
+								{option}
+								{option === question.recommended && <Text color={colors.success}> (recommended)</Text>}
+							</Text>
+						</ListRow>
 					);
 				})}
 				{typing ? (
@@ -112,20 +133,18 @@ export function AskPanel({questions, width, onDone}: Props) {
 						{!draft.value && <Text color={colors.muted}>Type your answer</Text>}
 					</Text>
 				) : (
-					<Text wrap="truncate-end" color={cursor === options.length ? colors.accent : colors.muted} bold={cursor === options.length}>
-						{cursor === options.length ? `${symbols.pointer} ` : '  '}
-						<Text color={colors.muted}>{options.length + 1}. </Text>
-						Type an answer{symbols.ellipsis}
-					</Text>
+					<ListRow selected={cursor === options.length}>
+						<Text
+							wrap="truncate-end"
+							color={cursor === options.length ? colors.selectionText : colors.muted}
+							bold={cursor === options.length}
+						>
+							{cursor === options.length ? `${symbols.pointer} ` : '  '}
+							{options.length + 1}. Type an answer{symbols.ellipsis}
+						</Text>
+					</ListRow>
 				)}
 			</Box>
-			<Box marginTop={1}>
-				<Text color={colors.muted} wrap="truncate-end">
-					{typing
-						? `enter submit ${symbols.dot} esc ${options.length > 0 ? 'back to options' : 'skip'}`
-						: `${symbols.arrowUpDown} move ${symbols.dot} enter select ${symbols.dot} 1-${rows} quick pick ${symbols.dot} esc skip`}
-				</Text>
-			</Box>
-		</Box>
+		</Modal>
 	);
 }

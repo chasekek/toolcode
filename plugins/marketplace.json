@@ -8,6 +8,20 @@
       "file": "commands/hello-world.js"
     },
     {
+      "id": "jevjudge",
+      "name": "JEV Judge",
+      "category": "tool",
+      "description": "Check code with the free JEV decision model on BeatAPI. Typed answers instead of prose. Needs a free BeatAPI key.",
+      "file": "tools/jevjudge.js"
+    },
+    {
+      "id": "jeffjudge",
+      "name": "Jeff Judge",
+      "category": "tool",
+      "description": "Check code with a Jeff model on your own machine, through llama.cpp or Ollama. Same questions as JEV Judge, no API key.",
+      "file": "tools/jeffjudge.js"
+    },
+    {
       "id": "browser-harness",
       "name": "Browser Harness",
       "category": "tool",
