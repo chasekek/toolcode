@@ -1,0 +1,46 @@
+{
+  "plugins": [
+    {
+      "id": "hello-world",
+      "name": "Hello World",
+      "category": "command",
+      "description": "Adds /helloworld, which replies \"hello world\".",
+      "file": "commands/hello-world.js"
+    },
+    {
+      "id": "browser-harness",
+      "name": "Browser Harness",
+      "category": "tool",
+      "description": "Drive the real Chrome over CDP via the browser-harness-js SDK. Needs `npx skills add https://github.com/browser-use/browser-harness-js --skill cdp` once.",
+      "file": "tools/browser-harness.js"
+    },
+    {
+      "id": "list-files",
+      "name": "List Files",
+      "category": "tool",
+      "description": "Lets the model list the files in a folder.",
+      "file": "tools/list-files.js"
+    },
+    {
+      "id": "llamacpp",
+      "name": "llama.cpp",
+      "category": "provider",
+      "description": "Run local models through llama-server (start it with --jinja).",
+      "file": "providers/llamacpp.js"
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "category": "provider",
+      "description": "Run local models through Ollama.",
+      "file": "providers/ollama.js"
+    },
+    {
+      "id": "echo",
+      "name": "Echo",
+      "category": "provider",
+      "description": "Test provider that repeats your message. Handy for trying plugins.",
+      "file": "providers/echo-provider.js"
+    }
+  ]
+}

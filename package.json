@@ -1,0 +1,52 @@
+{
+  "name": "@chasekek/toolcode",
+  "version": "0.0.1",
+  "description": "TOOLCODE - a terminal coding agent with bring-your-own model provider",
+  "type": "module",
+  "bin": {
+    "toolcode": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "plugins"
+  ],
+  "scripts": {
+    "dev": "tsx src/cli.tsx",
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "typecheck": "tsc --noEmit",
+    "smoke": "npm run build && node scripts/ui-smoke.mjs",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "author": "chasekek",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chasekek/toolcode.git"
+  },
+  "homepage": "https://github.com/chasekek/toolcode#readme",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "ink": "^6.8.0",
+    "react": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "@types/react": "^19.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  },
+  "exports": {
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "default": "./dist/plugin.js"
+    },
+    "./package.json": "./package.json"
+  }
+}
