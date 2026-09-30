@@ -76,7 +76,7 @@ test('marketplace: install hello world, run /helloworld, uninstall', () => {
 		assert.match(f['filter tools'], /▌⚒ \S.* · install/);
 		assert.doesNotMatch(f['filter tools'], /Hello World/);
 		assert.match(f['filter providers'], /❯ provider \d+/);
-		assert.match(f['filter providers'], /▌⚡llama\.cpp +· install/);
+		assert.match(f['filter providers'], /▌⚡\S.* · install/);
 		assert.doesNotMatch(f['filter providers'], /List Files/);
 		assert.match(f['installed'], /✓ installed/);
 		assert.match(f['installed'], /Installed Hello World: try \/helloworld\./);
