@@ -1,5 +1,6 @@
 import {AbortError} from '../core/abort.js';
 import type {StreamEvent, TurnKind} from '../core/types.js';
+import {VERSION} from '../version.js';
 
 /**
  * Stand-in for a real model stream so the UI can be exercised before the
@@ -39,7 +40,7 @@ import {App} from './ui/App.js';
 const args = process.argv.slice(2);
 
 if (args.includes('--version')) {
-  console.log('TOOLCODE v0.0.1');
+  console.log('TOOLCODE v${VERSION}');
   process.exit(0);
 }
 

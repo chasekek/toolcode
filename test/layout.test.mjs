@@ -4,8 +4,62 @@ import {changedFiles} from '../dist/ui/activity.js';
 import {highlightLine} from '../dist/ui/highlight.js';
 import {allocateSidebar, computeLayout, windowStart} from '../dist/ui/layout.js';
 import {parseMouse} from '../dist/ui/mouse.js';
+import {isFree, MODEL_SORTS, selectModels} from '../dist/ui/models.js';
 
 const sum = heights => Object.values(heights).reduce((a, b) => a + b, 0);
+
+/** Minimal stand-in for a Provider; the picker logic only reads id, name and models. */
+const fakeProvider = (id, name, models) => ({id, name, models});
+
+test('model search matches label, id and provider, and narrows with extra terms', () => {
+	const providers = [
+		fakeProvider('openrouter', 'OpenRouter', [
+			{id: 'anthropic/claude-sonnet-4.5', label: 'Claude Sonnet 4.5'},
+			{id: 'z-ai/glm-4.6:free', label: 'GLM 4.6'},
+		]),
+		fakeProvider('ollama', 'Ollama', [{id: 'llama3', label: 'Llama 3'}]),
+	];
+	const all = selectModels(providers, {query: '', sort: 'provider', freeOnly: false});
+	assert.equal(all.length, 3);
+
+	// A bare term searches the label, the raw id and the provider name.
+	assert.equal(selectModels(providers, {query: 'sonnet', sort: 'provider', freeOnly: false}).length, 1);
+	assert.equal(selectModels(providers, {query: 'anthropic/', sort: 'provider', freeOnly: false}).length, 1);
+	assert.equal(selectModels(providers, {query: 'ollama', sort: 'provider', freeOnly: false}).length, 1);
+
+	// Terms combine with AND, so a second word filters the first one's results down.
+	const two = selectModels(providers, {query: 'llama ollama', sort: 'provider', freeOnly: false});
+	assert.equal(two.length, 1);
+	assert.equal(selectModels(providers, {query: 'sonnet ollama', sort: 'provider', freeOnly: false}).length, 0);
+	assert.equal(selectModels(providers, {query: 'nope', sort: 'provider', freeOnly: false}).length, 0);
+});
+
+test('the free filter keeps only free models, by flag or by :free id', () => {
+	const providers = [
+		fakeProvider('openrouter', 'OpenRouter', [
+			{id: 'paid/one', label: 'Paid One'},
+			{id: 'flagged/two', label: 'Flagged Two', free: true},
+			{id: 'vendor/three:free', label: 'Three'},
+		]),
+	];
+	const free = selectModels(providers, {query: '', sort: 'provider', freeOnly: true});
+	assert.deepEqual(free.map(e => e.model.id), ['flagged/two', 'vendor/three:free']);
+	// A paid model with a false-ish free flag must not sneak through.
+	assert.equal(isFree({id: 'x/y', label: 'Y', free: false}), false);
+});
+
+test('sorting groups by provider, orders by name, and floats free models first', () => {
+	const providers = [
+		fakeProvider('zeta', 'Zeta', [{id: 'z/1', label: 'Alpha'}]),
+		fakeProvider('alpha', 'Alpha', [{id: 'a/1', label: 'Zulu'}, {id: 'a/2', label: 'Bravo', free: true}]),
+	];
+	const by = sort => selectModels(providers, {query: '', sort, freeOnly: false}).map(e => `${e.provider.name}/${e.model.label}`);
+	assert.deepEqual(by('provider'), ['Alpha/Bravo', 'Alpha/Zulu', 'Zeta/Alpha']);
+	assert.deepEqual(by('name'), ['Zeta/Alpha', 'Alpha/Bravo', 'Alpha/Zulu']);
+	// "free first" keeps provider grouping within each band.
+	assert.deepEqual(by('free'), ['Alpha/Bravo', 'Alpha/Zulu', 'Zeta/Alpha']);
+	assert.deepEqual(MODEL_SORTS, ['provider', 'name', 'free']);
+});
 
 test('the sidebar always fills its column, serving the focused panel first', () => {
 	for (const available of [4, 9, 12, 17, 30, 60]) {

@@ -53,6 +53,11 @@ await wait();
 if (scenario === 'plugins') {
 	await type('/plugins'); await key('\r'); show('plugins');
 	await type('/model'); await key('\r'); show('picker');
+	await key('s'); show('picker sorted');
+	await key('f'); show('picker free only');
+	await key('/'); await type('echo'); show('picker search');
+	await key('\x7f'); await key('\x1b', 200); show('picker search cleared');
+	await key('\x1b', 200);
 	await key('7'); show('picked echo');
 	await type('hey'); await key('\r', 1500); show('echo reply');
 } else if (scenario === 'agent') {

@@ -1,12 +1,14 @@
 import {ask} from './ask.js';
 import {deleteFile} from './deleteFile.js';
+import {editFile} from './editFile.js';
 import {readFile} from './readFile.js';
+import {search} from './search.js';
 import type {Tool} from './types.js';
 import {todoWrite} from './todoWrite.js';
 import {writeFile} from './writeFile.js';
 
 /** Built-in tools first, then any registered by plugins. */
-export const tools: Tool[] = [readFile, writeFile, deleteFile, todoWrite, ask];
+export const tools: Tool[] = [readFile, search, writeFile, editFile, deleteFile, todoWrite, ask];
 
 export function registerTool(tool: Tool): void {
 	if (getTool(tool.name)) throw new Error(`A tool named "${tool.name}" already exists.`);

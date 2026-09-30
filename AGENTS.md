@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**TOOLCODE** (`toolcode`, v0.0.1) is a terminal coding agent with a bring-your-own-model-provider
+**TOOLCODE** (`toolcode`, v0.0.2) is a terminal coding agent with a bring-your-own-model-provider
 architecture. An Ink/React TUI drives an agent loop that streams completions from a pluggable
 provider, executes tool calls against a sandboxed workspace, and renders the result live.
 

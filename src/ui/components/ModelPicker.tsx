@@ -1,9 +1,10 @@
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {Box, Text} from 'ink';
 import {useKeys} from '../hooks/useKeys.js';
 import {keySource} from '../../providers/registry.js';
 import type {ModelInfo, Provider} from '../../providers/types.js';
 import {windowStart} from '../layout.js';
+import {isFree, MODEL_SORTS, selectModels, sortLabel, type ModelSort} from '../models.js';
 import {useTheme} from '../theme.js';
 import {ListRow} from './ListRow.js';
 import {Modal} from './Modal.js';
@@ -20,38 +21,94 @@ interface Props {
 	onCancel: () => void;
 }
 
-type Row = {kind: 'provider'; provider: Provider} | {kind: 'model'; provider: Provider; model: ModelInfo; index: number};
+// Rows around the list: search line, sort line, gaps, borders.
+const CHROME_ROWS = 6;
 
 export function ModelPicker({providers, currentProvider, current, width, maxHeight, onSelect, onCancel}: Props) {
 	const {colors, symbols} = useTheme();
-	const entries = providers.flatMap(provider => provider.models.map(model => ({provider, model})));
+	// Search is a mode rather than always-on typing, so plain letters keep moving the
+	// cursor and digits keep quick-picking a model.
+	const [searching, setSearching] = useState(false);
+	const [query, setQuery] = useState('');
+	const [sort, setSort] = useState<ModelSort>('provider');
+	const [freeOnly, setFreeOnly] = useState(false);
+
+	const entries = selectModels(providers, {query, sort, freeOnly});
+	// Counted without the filter, so the status can say "3 of 240" rather than just "3".
+	const total = selectModels(providers, {query: '', sort, freeOnly: false}).length;
 	const isCurrent = (e: {provider: Provider; model: ModelInfo}) => e.provider.id === currentProvider && e.model.id === current;
-	const [index, setIndex] = useState(Math.max(0, entries.findIndex(isCurrent)));
+	// Open on whatever is already selected, so the picker confirms the status quo.
+	const [index, setIndex] = useState(0);
+	const [opened, setOpened] = useState(false);
 	const quickPick = Math.min(entries.length, 9);
 
-	const rows: Row[] = [];
-	let count = 0;
-	for (const provider of providers) {
-		if (provider.models.length === 0) continue;
-		rows.push({kind: 'provider', provider});
-		for (const model of provider.models) rows.push({kind: 'model', provider, model, index: count++});
-	}
-	const selectedRow = rows.findIndex(r => r.kind === 'model' && r.index === index);
-	const visible = Math.max(1, Math.min(rows.length, maxHeight - 2));
-	// Keep the provider heading in view with the first model under it.
-	const start = windowStart(rows.length, visible, Math.max(0, selectedRow - (rows[selectedRow - 1]?.kind === 'provider' ? 1 : 0)));
-	const labelWidth = Math.max(...entries.map(e => e.model.label.length)) + 2;
-	const showIds = width - 4 >= labelWidth + 34;
+	// Jump to the active model once, on the first unfiltered render.
+	useEffect(() => {
+		if (opened) return;
+		const at = entries.findIndex(isCurrent);
+		if (at !== -1) setIndex(at);
+		setOpened(true);
+	}, [entries, opened]);
+
+	// Any change to the result set invalidates the old cursor position.
+	useEffect(() => setIndex(0), [query, sort, freeOnly]);
+
+	const listRows = Math.max(1, maxHeight - CHROME_ROWS);
+	const start = windowStart(entries.length, listRows, index);
+	const freeTagWidth = entries.some(e => isFree(e.model)) ? 7 : 0;
+	const labelWidth = Math.max(...entries.map(e => e.model.label.length), 8) + 2;
+	const providerWidth = Math.max(...entries.map(e => e.provider.name.length), 6) + 2;
+	// Room for the id only when label, provider and a couple of tags all fit. The provider
+	// tag is the point of the change, so it holds its column even when the id is dropped.
+	const showIds = width - 4 >= 4 + labelWidth + freeTagWidth + providerWidth + 34;
+
+	const move = (delta: number) => {
+		if (entries.length === 0) return;
+		setIndex(i => (i + delta + entries.length) % entries.length);
+	};
+	const pick = (i: number) => {
+		const entry = entries[i];
+		if (entry) onSelect(entry.provider, entry.model);
+	};
 
 	useKeys((input, key) => {
-		if (key.upArrow || input === 'k') setIndex(i => (i - 1 + entries.length) % entries.length);
-		if (key.downArrow || input === 'j') setIndex(i => (i + 1) % entries.length);
-		const pick = (i: number) => onSelect(entries[i]!.provider, entries[i]!.model);
-		if (key.return) pick(index);
-		if (key.escape || (key.ctrl && input === 'c')) onCancel();
+		if (key.escape || (key.ctrl && input === 'c')) {
+			// Esc backs out of search before it closes the popup.
+			if (searching || query) {
+				setSearching(false);
+				setQuery('');
+				return;
+			}
+			return onCancel();
+		}
+
+		if (searching) {
+			if (key.return) return pick(index);
+			if (key.backspace || key.delete) return setQuery(q => q.slice(0, -1));
+			// A lone printable character is the query; ctrl/alt combos are not.
+			if (input && !key.ctrl && !key.meta && input.length === 1) return setQuery(q => q + input);
+			return;
+		}
+
+		if (input === '/') {
+			setSearching(true);
+			return;
+		}
+		if (input === 's') {
+			return setSort(s => MODEL_SORTS[(MODEL_SORTS.indexOf(s) + 1) % MODEL_SORTS.length]!);
+		}
+		if (input === 'f') {
+			setFreeOnly(f => !f);
+			return;
+		}
+		if (key.upArrow || input === 'k') return move(-1);
+		if (key.downArrow || input === 'j') return move(1);
+		if (key.return) return pick(index);
 		const digit = Number.parseInt(input, 10);
 		if (digit >= 1 && digit <= quickPick) pick(digit - 1);
 	});
+
+	const freeCount = providers.reduce((n, p) => n + p.models.filter(isFree).length, 0);
 
 	return (
 		<Modal
@@ -59,66 +116,100 @@ export function ModelPicker({providers, currentProvider, current, width, maxHeig
 			width={width}
 			status={
 				<Text color={colors.muted}>
-					{index + 1} of {entries.length}
+					{entries.length === total ? `${entries.length} models` : `${entries.length} of ${total}`}
 				</Text>
 			}
 			footer={
 				<Text color={colors.muted}>
-					{symbols.arrowUpDown} move {symbols.dot} {symbols.keyEnter} select {symbols.dot} 1-{quickPick} pick {symbols.dot} esc close
+					{symbols.arrowUpDown} move {symbols.dot} / search {symbols.dot} s sort {symbols.dot} f free {symbols.dot}{' '}
+					{symbols.keyEnter} select {symbols.dot} esc close
 				</Text>
 			}
 		>
-			{rows.slice(start, start + visible).map(row => {
-				if (row.kind === 'provider') {
-					const source = keySource(row.provider);
+			<Box>
+				<Text color={searching ? colors.accent : colors.muted}>{symbols.pointer} </Text>
+				<Box flexGrow={1} flexShrink={1}>
+					{query ? (
+						<Text wrap="truncate-end">
+							<Text color={colors.primary}>{query}</Text>
+							{searching && <Text color={colors.accent}>▏</Text>}
+						</Text>
+					) : (
+						<Text color={colors.muted}>{searching ? 'type to search…' : '/ to search'}</Text>
+					)}
+				</Box>
+			</Box>
+
+			<Box>
+				<Text color={colors.muted}>sort </Text>
+				<Text color={colors.primary}>{sortLabel(sort)}</Text>
+				<Text color={colors.muted}>{symbols.dot} </Text>
+				<Text color={freeOnly ? colors.success : colors.muted}>
+					{freeOnly ? `${symbols.check} free only (${freeCount})` : `all models${freeCount > 0 ? ` (${freeCount} free)` : ''}`}
+				</Text>
+			</Box>
+
+			<Box flexDirection="column" marginTop={1} height={listRows} overflow="hidden">
+				{entries.length === 0 && (
+					<Text color={colors.muted} wrap="truncate-end">
+						{freeOnly && freeCount === 0
+							? 'No free models in this catalog.'
+							: `Nothing matches “${query}”.`}
+					</Text>
+				)}
+				{entries.slice(start, start + listRows).map((entry, i) => {
+					const at = start + i;
+					const active = at === index;
+					const on = isCurrent(entry);
+					const text = active ? colors.selectionText : undefined;
+					const source = keySource(entry.provider);
 					return (
-						<Box key={`p:${row.provider.id}`}>
-							<Box flexGrow={1} flexShrink={1}>
-								<Text bold color={colors.accent} wrap="truncate-end">
-									{row.provider.name}
+						<ListRow key={`${entry.provider.id}:${entry.model.id}`} selected={active}>
+							<Box width={4} flexShrink={0}>
+								<Text color={active ? colors.selectionText : colors.muted}>{at < quickPick ? ` ${at + 1}.` : ''}</Text>
+							</Box>
+							<Box width={showIds ? labelWidth : undefined} flexShrink={showIds ? 0 : 1}>
+								<Text color={text} bold={active} wrap="truncate-end">
+									{entry.model.label}
 								</Text>
 							</Box>
-							<Box flexShrink={0} marginLeft={1}>
-								{source === 'none' ? (
-									<Text color={colors.warning}>
-										{symbols.warning} {row.provider.apiKeyEnv} not set
-									</Text>
-								) : (
-									<Text color={source === 'not-needed' ? colors.muted : colors.success}>
-										{source === 'not-needed' ? 'no key needed' : `${symbols.bullet} key set`}
-									</Text>
+							{/* A fixed-width slot keeps the provider column aligned whether or not a
+							    given row is free, so the names below each other. */}
+							<Box width={freeTagWidth} flexShrink={0}>
+								{isFree(entry.model) && (
+									<Text color={active ? colors.selectionText : colors.success}>(free)</Text>
 								)}
 							</Box>
-						</Box>
-					);
-				}
-				const active = row.index === index;
-				const text = active ? colors.selectionText : undefined;
-				return (
-					<ListRow key={`m:${row.provider.id}:${row.model.id}`} selected={active}>
-						<Box width={4} flexShrink={0}>
-							<Text color={active ? colors.selectionText : colors.muted}>{row.index < quickPick ? ` ${row.index + 1}.` : ''}</Text>
-						</Box>
-						<Box width={showIds ? labelWidth : undefined} flexShrink={showIds ? 0 : 1}>
-							<Text color={text} bold={active} wrap="truncate-end">
-								{row.model.label}
-							</Text>
-						</Box>
-						{showIds && (
-							<Box flexGrow={1} flexShrink={1}>
+							{/* Which provider serves the model, right on the row. The margin keeps a
+							    gap even when the id column is dropped and the label box has shrunk. */}
+							<Box width={providerWidth} flexShrink={0} marginLeft={1}>
 								<Text color={active ? colors.selectionText : colors.muted} wrap="truncate-end">
-									{row.model.id}
+									{entry.provider.name}
 								</Text>
 							</Box>
-						)}
-						{isCurrent(row) && (
-							<Box flexShrink={0} marginLeft={1}>
-								<Text color={colors.success}>{symbols.check}</Text>
-							</Box>
-						)}
-					</ListRow>
-				);
-			})}
+							{showIds && (
+								<Box flexGrow={1} flexShrink={1}>
+									<Text color={active ? colors.selectionText : colors.muted} wrap="truncate-end">
+										{entry.model.id}
+									</Text>
+								</Box>
+							)}
+							{source === 'none' && (
+								<Box flexShrink={0} marginLeft={1}>
+									<Text color={colors.warning} wrap="truncate-end">
+										{symbols.warning} no key
+									</Text>
+								</Box>
+							)}
+							{on && (
+								<Box flexShrink={0} marginLeft={1}>
+									<Text color={colors.success}>{symbols.check}</Text>
+								</Box>
+							)}
+						</ListRow>
+					);
+				})}
+			</Box>
 		</Modal>
 	);
 }

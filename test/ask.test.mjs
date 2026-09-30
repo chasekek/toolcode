@@ -46,7 +46,7 @@ test('ask and todo_write are offered in read-only turns', async () => {
 	try {
 		const {provider, requests} = scriptedProvider(['ok']);
 		await runTurn({provider, cwd: dir, kind: 'plan'});
-		assert.deepEqual(requests[0].tools.map(t => t.name).sort(), ['ask', 'read_file', 'todo_write']);
+		assert.deepEqual(requests[0].tools.map(t => t.name).sort(), ['ask', 'read_file', 'search', 'todo_write']);
 	} finally {
 		cleanup();
 	}

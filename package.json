@@ -1,6 +1,6 @@
 {
   "name": "@chasekek/toolcode",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "TOOLCODE - a terminal coding agent with bring-your-own model provider",
   "type": "module",
   "bin": {

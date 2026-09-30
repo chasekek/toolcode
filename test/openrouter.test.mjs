@@ -54,6 +54,33 @@ test('a model without a usable id is skipped, one without a name falls back to i
 	});
 });
 
+test('a zero prompt price or a :free id marks the model free', async () => {
+	await withCatalog(
+		{
+			data: [
+				{id: 'vendor/zero-string', name: 'Zero String', pricing: {prompt: '0'}},
+				{id: 'vendor/zero-float', name: 'Zero Float', pricing: {prompt: 0}},
+				{id: 'vendor/zero-padded', name: 'Zero Padded', pricing: {prompt: '0.000000'}},
+				{id: 'vendor/suffix:free', name: 'Suffix Free'},
+				{id: 'vendor/paid', name: 'Paid', pricing: {prompt: '0.000003'}},
+				{id: 'vendor/unknown', name: 'Unknown'},
+			],
+		},
+		async () => {
+			await refreshOpenRouterModels();
+			const by = id => openrouter.models.find(m => m.id === id);
+			assert.equal(by('vendor/zero-string').free, true);
+			assert.equal(by('vendor/zero-float').free, true);
+			assert.equal(by('vendor/zero-padded').free, true);
+			// The id suffix is the fallback when the price is missing entirely.
+			assert.equal(by('vendor/suffix:free').free, true);
+			// A real price, and an absent one, are both not free.
+			assert.equal(by('vendor/paid').free, false);
+			assert.equal(by('vendor/unknown').free, false);
+		},
+	);
+});
+
 test('a response that is not the catalog leaves the current list alone', async () => {
 	const before = openrouter.models;
 	globalThis.fetch = async () => ({ok: true, status: 200, headers: new Headers(), json: async () => ({error: 'nope'})});

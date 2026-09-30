@@ -55,10 +55,24 @@ async function fetchCatalog(signal?: AbortSignal): Promise<ModelInfo[]> {
 	const body = (await response.json()) as {data?: unknown};
 	if (!Array.isArray(body.data)) throw new Error('the response has no "data" array');
 	return body.data.flatMap(entry => {
-		const model = (entry ?? {}) as {id?: unknown; name?: unknown};
+		const model = (entry ?? {}) as {id?: unknown; name?: unknown; pricing?: {prompt?: unknown}};
 		if (typeof model.id !== 'string' || !model.id) return [];
-		return [{id: model.id, label: typeof model.name === 'string' && model.name ? model.name : model.id}];
+		return [{
+			id: model.id,
+			label: typeof model.name === 'string' && model.name ? model.name : model.id,
+			// OpenRouter publishes a price per million tokens; a zero prompt price means free.
+			// The `:free` id suffix is a second signal, since the price can be missing.
+			free: isFreePrice(model.pricing?.prompt) || model.id.endsWith(':free'),
+		}];
 	});
+}
+
+/** Treats "0", 0 and "0.000000" as free, and anything unparseable as not free. */
+function isFreePrice(prompt: unknown): boolean {
+	if (typeof prompt === 'number') return prompt === 0;
+	if (typeof prompt !== 'string') return false;
+	const price = Number.parseFloat(prompt);
+	return Number.isFinite(price) && price === 0;
 }
 
 /**

@@ -801,7 +801,7 @@ export function App({initialSettings, plugins}: Props) {
 								providers={providers}
 								currentProvider={provider.id}
 								current={model}
-								width={popupWidth(76)}
+								width={popupWidth(88)}
 								maxHeight={popupMaxHeight}
 								onSelect={(p, m) => {
 									selectModel(p, m.id, m.label);

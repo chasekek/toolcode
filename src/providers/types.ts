@@ -3,6 +3,8 @@ import type {JsonSchema} from '../tools/types.js';
 export interface ModelInfo {
 	id: string;
 	label: string;
+	/** Set by the provider when the model can be used at no cost. */
+	free?: boolean;
 }
 
 /** A tool call as the model requested it; `arguments` is a JSON string. */
