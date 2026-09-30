@@ -12,3 +12,12 @@ PLEASE STAR THIS PROJECT
 ## this is so experimental, likely will not work 99% of the time, please give it time
 ### feel free to make pull requests
 
+## Star History
+
+<a href="https://www.star-history.com/?repos=chasekek%2Ftoolcode&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=chasekek/toolcode&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=chasekek/toolcode&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=chasekek/toolcode&type=date&legend=top-left" />
+ </picture>
+</a>
