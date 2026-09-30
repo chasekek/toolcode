@@ -36,6 +36,13 @@
       "file": "tools/list-files.js"
     },
     {
+      "id": "groq",
+      "name": "Groq",
+      "category": "provider",
+      "description": "Fast inference on GroqCloud (Llama 3.3, GPT-OSS 120B). Needs a free key from console.groq.com.",
+      "file": "providers/groq.js"
+    },
+    {
       "id": "llamacpp",
       "name": "llama.cpp",
       "category": "provider",
