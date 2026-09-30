@@ -369,6 +369,20 @@ function setup(key) {
 	return `Saved the BeatAPI key (${describeKey(value)}).\n\n/jevjudge <task> — judge code against it.`;
 }
 
+/** Run bare: say what this is and whether it is ready, without a wall of setup text. */
+function greet() {
+	const key = apiKey();
+	return [
+		'Hi — jevjudge checks code with JEV, the free decision model on BeatAPI.',
+		'',
+		key ? `Key:  ${describeKey(key)}` : `Key:  none yet. Run /jevjudge setup <key>.`,
+		`Model: ${MODEL} at ${BASE}/systemone`,
+		'',
+		'/jevjudge <task and code>   judge something',
+		'/jevjudge setup <key>      save a different key',
+	].join('\n');
+}
+
 export default {
 	name: 'jevjudge',
 	tools: [
@@ -415,7 +429,7 @@ export default {
 			args: '[setup <key> | task + code]',
 			async run(args) {
 				const trimmed = args.trim();
-				if (!trimmed) return `No code to judge.\n\n${SETUP_HELP}\n\nCurrent key: ${describeKey(apiKey())}`;
+				if (!trimmed) return greet();
 				const setupMatch = /^setup\b\s*(.*)$/is.exec(trimmed);
 				if (setupMatch) return setup(setupMatch[1]);
 				if (!apiKey()) return `${SETUP_HELP}\n\nCurrent key: ${describeKey(apiKey())}`;

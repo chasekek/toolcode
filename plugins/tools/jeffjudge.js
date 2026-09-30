@@ -389,6 +389,20 @@ function status() {
 	return `${head}\n\n${instructions(c)}`;
 }
 
+/** Run bare: say what this is and whether it is ready, without a wall of setup text. */
+function greet() {
+	const c = current();
+	return [
+		'Hi — jeffjudge checks code with a Jeff model running on your own machine.',
+		'',
+		`Status: ${describe(c)}`,
+		c.runtime && c.size ? `Setup:  ${CONFIG}` : 'Not set up yet: /jeffjudge setup picks the runtime and the model size.',
+		'',
+		'/jeffjudge <task and code>   judge something',
+		'/jeffjudge status            settings and start commands',
+	].join('\n');
+}
+
 const PARAMETERS = {
 	type: 'object',
 	properties: {
@@ -437,7 +451,8 @@ export default {
 			args: '[setup | status | code]',
 			async run(args) {
 				const trimmed = args.trim();
-				if (!trimmed || /^setup\b/i.test(trimmed)) return setup(undefined);
+				if (!trimmed) return greet();
+				if (/^setup\b/i.test(trimmed)) return setup(undefined);
 				if (/^status\b/i.test(trimmed)) return status();
 				const v = await judge({task: trimmed, code: trimmed}, undefined);
 				return v.report;

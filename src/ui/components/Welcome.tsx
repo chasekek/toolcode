@@ -1,4 +1,5 @@
 import {Box, Text} from 'ink';
+import {getCommand} from '../../core/commands.js';
 import {APP_NAME, AUTHOR, VERSION} from '../../version.js';
 import {gradientColors, useTheme} from '../theme.js';
 
@@ -45,13 +46,20 @@ const TIPS: Array<[string, string]> = [
 	['tab', 'move between panels'],
 ];
 
+/** Listed only when the plugin is actually installed, so the tips stay true. */
+const JUDGE_TIPS: Array<[string, string]> = [
+	['/jevjudge', 'check code with the free JEV API'],
+	['/jeffjudge', 'check code with a local Jeff model'],
+];
+
 /** The empty conversation: logo, version, and a few ways to begin. */
 export function Welcome({width, modelLabel, missingKey}: Props) {
 	const {colors, symbols, unicode} = useTheme();
 	const logo = unicode ? LOGO : ASCII_LOGO;
 	const logoWidth = Math.max(...logo.map(l => l.length));
 	const showLogo = width >= logoWidth + 2;
-	const keyWidth = Math.max(...TIPS.map(([k]) => k.length)) + 3;
+	const tips = [...TIPS, ...JUDGE_TIPS.filter(([name]) => getCommand(name))];
+	const keyWidth = Math.max(...tips.map(([k]) => k.length)) + 3;
 
 	return (
 		<Box flexDirection="column" alignItems="center" flexShrink={0}>
@@ -66,7 +74,7 @@ export function Welcome({width, modelLabel, missingKey}: Props) {
 				</Text>
 			</Box>
 			<Box flexDirection="column" marginTop={1}>
-				{TIPS.map(([key, text]) => (
+				{tips.map(([key, text]) => (
 					<Box key={key}>
 						<Box width={keyWidth} flexShrink={0}>
 							<Text color={colors.primary}>{key}</Text>
