@@ -13,7 +13,7 @@ PLEASE STAR THIS PROJECT
 ### feel free to make pull requests
 
 ## Star History
-
+⭐ If you find ToolCode interesting in this BUGGY state, please star :heart:
 <a href="https://www.star-history.com/?repos=chasekek%2Ftoolcode&type=date&legend=top-left">
  <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=chasekek/toolcode&type=date&theme=dark&legend=top-left" />
