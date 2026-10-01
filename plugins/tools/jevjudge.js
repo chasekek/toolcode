@@ -390,6 +390,7 @@ export default {
 			name: 'jev_judge',
 			label: 'JEV judge',
 			readOnly: true, // only reads and asks, so it also runs in plan mode, /improve and /judge
+			keywords: ['judge', 'jev'],
 			description:
 				'Check code with the JEV decision model (free on BeatAPI). Sends the code and the task as a state plus four ' +
 				'typed questions — correct, safe to run, worst issue, verdict — and returns calibrated probabilities you ' +

@@ -1,13 +1,13 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {existsSync, mkdtempSync, rmSync} from 'node:fs';
+import {copyFileSync, existsSync, mkdtempSync, rmSync} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 // The plugin folder is read at import time, so point it at a temp dir first.
 const dir = mkdtempSync(path.join(os.tmpdir(), 'toolcode-mp-'));
 process.env.TOOLCODE_PLUGIN_DIR = dir;
-const {readCatalog, install, uninstall, isInstalled, installPath} = await import('../dist/plugins/marketplace.js');
+const {readCatalog, install, uninstall, isInstalled, installPath, catalogPath, catalogState} = await import('../dist/plugins/marketplace.js');
 const {getCommand, matchCommands} = await import('../dist/core/commands.js');
 const {getProvider} = await import('../dist/providers/registry.js');
 test.after(() => rmSync(dir, {recursive: true, force: true}));
@@ -42,4 +42,21 @@ test('provider plugins register and unregister too', async () => {
 	assert.ok(getProvider('echo'));
 	uninstall(echo, loaded);
 	assert.equal(getProvider('echo'), undefined);
+});
+
+test('catalogState counts a plugin loaded from the bundled copy, not the plugins folder', () => {
+	const ollama = entry('ollama');
+	assert.equal(catalogState(ollama, []), 'available');
+	// What `loadPlugins` returns for `--plugin plugins`: a file sitting next to the catalog.
+	const fromSource = [{name: 'ollama', file: catalogPath(ollama), tools: [], providers: [], commands: []}];
+	assert.equal(catalogState(ollama, fromSource), 'loaded');
+	// An installed file wins, and is what makes the entry removable.
+	copyFileSync(catalogPath(ollama), installPath(ollama));
+	try {
+		assert.equal(catalogState(ollama, []), 'installed');
+		assert.equal(catalogState(ollama, fromSource), 'installed');
+	} finally {
+		rmSync(installPath(ollama), {force: true});
+	}
+	assert.equal(catalogState(ollama, fromSource), 'loaded');
 });

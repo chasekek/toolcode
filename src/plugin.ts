@@ -1,5 +1,5 @@
 /**
- * Optional helpers for plugin authors: `import {definePlugin} from '@chasekek/toolcode/plugin'`
+ * Optional helpers for plugin authors: `import {definePlugin} from 'toolcode/plugin'`
  * gives editor autocomplete. Plugins work without importing anything.
  */
 import type {PluginDefinition, PluginProvider, PluginTool} from './plugins/types.js';

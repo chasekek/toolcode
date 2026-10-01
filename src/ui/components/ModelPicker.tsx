@@ -21,8 +21,10 @@ interface Props {
 	onCancel: () => void;
 }
 
-// Rows around the list: search line, sort line, gaps, borders.
-const CHROME_ROWS = 6;
+// Rows around the list: search line, sort line, gap, column heads, borders.
+const CHROME_ROWS = 7;
+// Active-model check, quick-pick digit, and a space before the label.
+const GUTTER = 5;
 
 export function ModelPicker({providers, currentProvider, current, width, maxHeight, onSelect, onCancel}: Props) {
 	const {colors, symbols} = useTheme();
@@ -60,7 +62,7 @@ export function ModelPicker({providers, currentProvider, current, width, maxHeig
 	const providerWidth = Math.max(...entries.map(e => e.provider.name.length), 6) + 2;
 	// Room for the id only when label, provider and a couple of tags all fit. The provider
 	// tag is the point of the change, so it holds its column even when the id is dropped.
-	const showIds = width - 4 >= 4 + labelWidth + freeTagWidth + providerWidth + 34;
+	const showIds = width - 4 >= GUTTER + labelWidth + freeTagWidth + providerWidth + 34;
 
 	const move = (delta: number) => {
 		if (entries.length === 0) return;
@@ -149,7 +151,20 @@ export function ModelPicker({providers, currentProvider, current, width, maxHeig
 				</Text>
 			</Box>
 
-			<Box flexDirection="column" marginTop={1} height={listRows} overflow="hidden">
+			{/* Column heads share the row widths below, so each label sits over its column. */}
+			<Box marginTop={1}>
+				<Box width={GUTTER} flexShrink={0} />
+				<Box width={showIds ? labelWidth : undefined} flexShrink={showIds ? 0 : 1}>
+					<Text color={colors.muted}>MODEL</Text>
+				</Box>
+				<Box width={freeTagWidth} flexShrink={0} />
+				<Box width={providerWidth} flexShrink={0} marginLeft={1}>
+					<Text color={colors.muted}>PROVIDER</Text>
+				</Box>
+				{showIds && <Text color={colors.muted}>ID</Text>}
+			</Box>
+
+			<Box flexDirection="column" height={listRows} overflow="hidden">
 				{entries.length === 0 && (
 					<Text color={colors.muted} wrap="truncate-end">
 						{freeOnly && freeCount === 0
@@ -165,8 +180,11 @@ export function ModelPicker({providers, currentProvider, current, width, maxHeig
 					const source = keySource(entry.provider);
 					return (
 						<ListRow key={`${entry.provider.id}:${entry.model.id}`} selected={active}>
-							<Box width={4} flexShrink={0}>
-								<Text color={active ? colors.selectionText : colors.muted}>{at < quickPick ? ` ${at + 1}.` : ''}</Text>
+							{/* The check sits in the gutter, where it can't be truncated away. */}
+							<Box width={GUTTER} flexShrink={0}>
+								<Text color={active ? colors.selectionText : on ? colors.success : colors.muted}>
+									{on ? symbols.check : ' '} {at < quickPick ? at + 1 : ' '}
+								</Text>
 							</Box>
 							<Box width={showIds ? labelWidth : undefined} flexShrink={showIds ? 0 : 1}>
 								<Text color={text} bold={active} wrap="truncate-end">
@@ -199,11 +217,6 @@ export function ModelPicker({providers, currentProvider, current, width, maxHeig
 									<Text color={colors.warning} wrap="truncate-end">
 										{symbols.warning} no key
 									</Text>
-								</Box>
-							)}
-							{on && (
-								<Box flexShrink={0} marginLeft={1}>
-									<Text color={colors.success}>{symbols.check}</Text>
 								</Box>
 							)}
 						</ListRow>

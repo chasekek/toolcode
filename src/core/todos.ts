@@ -66,7 +66,8 @@ export function parseTodos(value: unknown): Todo[] {
 	return todos;
 }
 
-function findCycle(todos: Todo[]): string[] | null {
+/** A dependency cycle as a path of ids, or null. Shared with orchestrator task plans. */
+export function findCycle(todos: Array<{id: string; deps: string[]}>): string[] | null {
 	const byId = new Map(todos.map(t => [t.id, t]));
 	const state = new Map<string, 'visiting' | 'done'>();
 	const path: string[] = [];

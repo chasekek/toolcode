@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>TOOLCODE — plugin docs</title>
+		<meta
+			name="description"
+			content="How to write a TOOLCODE plugin: tools, providers and slash commands. One JavaScript file, no imports, no build step."
+		/>
+		<link rel="stylesheet" href="styles.css" />
+	</head>
+	<body>
+		<div class="grain" aria-hidden="true"></div>
+
+		<!-- ── Hero: the empty conversation, exactly as Welcome.tsx draws it ── -->
+		<header class="hero">
+			<h1 class="logo">
+				<span class="logo__line">▀█▀ █▀█ █▀█ █   █▀▀ █▀█ █▀▄ █▀▀</span>
+				<span class="logo__line"> █  █▄█ █▄█ █▄▄ █▄▄ █▄█ █▄▀ ██▄</span>
+				<span class="sr-only">TOOLCODE</span>
+			</h1>
+			<p class="hero__sub">
+				plugin authoring <span class="dot">·</span> one javascript file <span class="dot">·</span>
+				nothing to install
+			</p>
+			<div class="hero__tips">
+				<div class="hero__tip"><span class="k">60 seconds</span><span>write a tool</span></div>
+				<div class="hero__tip"><span class="k">by chance</span><span>roll a random plugin</span></div>
+				<div class="hero__tip"><span class="k">zero deps</span><span>plain ESM, runs as-is</span></div>
+			</div>
+			<div class="hero__cta">
+				<button class="btn btn--primary" data-goto="start">Start here</button>
+				<button class="btn" data-goto="vibe">Roll me a plugin</button>
+			</div>
+			<div class="hero__fade" aria-hidden="true"></div>
+		</header>
+
+		<!-- ── The application, drawn as the TUI draws itself ── -->
+		<main class="app" id="app">
+			<div class="titlebar">
+				<span class="titlebar__brand"><span class="brand">◆</span> TOOLCODE</span>
+				<span class="titlebar__sep">·</span>
+				<span class="titlebar__doc">plugin docs</span>
+				<span class="titlebar__right">
+					<span class="pill pill--green"><span class="pill__dot"></span> docs</span>
+					<span class="dim">v0.0.2</span>
+				</span>
+			</div>
+
+			<div class="status">
+				<div class="status__row"><span class="status__k">Workspace</span><span class="status__v">~/.toolcode/plugins</span></div>
+				<div class="status__row"><span class="status__k">Runtime</span><span class="status__v">node ≥ 20 <span class="dot">·</span> esm</span></div>
+				<div class="status__row"><span class="status__k">Contract</span><span class="status__v">tools <span class="dot">·</span> providers <span class="dot">·</span> commands</span></div>
+			</div>
+
+			<div class="app__body">
+				<!-- Sidebar: panel [1] -->
+				<nav class="panel panel--side" aria-label="Documentation sections">
+					<div class="panel__title"><span class="panel__idx">[1]</span>Contents</div>
+					<div class="panel__body" id="contents"></div>
+					<div class="panel__foot"><span id="contentsCount">9 sections</span></div>
+				</nav>
+
+				<!-- Main: panel [0] -->
+				<section class="panel panel--main" aria-label="Section content">
+					<div class="panel__title">
+						<span class="panel__idx">[0]</span><span id="mainTitle">Start here</span>
+					</div>
+					<div class="panel__body" id="doc" tabindex="0"></div>
+					<div class="panel__foot"><span id="docFoot">docs</span></div>
+				</section>
+			</div>
+
+			<!-- Prompt: a real input that filters and jumps, like the TUI prompt -->
+			<div class="panel panel--prompt">
+				<div class="panel__title">Prompt</div>
+				<div class="prompt">
+					<span class="prompt__sigil" aria-hidden="true">❯</span>
+					<input
+						id="prompt"
+						class="prompt__input"
+						type="text"
+						autocomplete="off"
+						spellcheck="false"
+						placeholder="Ask TOOLCODE anything, or type / for sections"
+						aria-label="Filter sections"
+					/>
+				</div>
+				<div class="prompt__menu" id="promptMenu" hidden></div>
+			</div>
+
+			<!-- KeyBar: what the keys do right now -->
+			<footer class="keybar" id="keybar"></footer>
+		</main>
+
+		<script src="content.js"></script>
+		<script src="app.js"></script>
+	</body>
+</html>

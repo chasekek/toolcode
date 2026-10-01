@@ -50,7 +50,8 @@ export type StreamEvent =
 	| {type: 'tool_start'; call: Pick<ToolCall, 'id' | 'name' | 'args'>}
 	| {type: 'tool_end'; id: string; status: Exclude<ToolStatus, 'running'>; summary: string; output?: string};
 
-export type Mode = 'default' | 'plan';
+/** plan: read-only planning; orchestrate: coordinate delegated agents. */
+export type Mode = 'default' | 'plan' | 'orchestrate';
 
 /** What kind of turn produced a request; commands like /judge reuse the chat pipeline. */
 export type TurnKind = 'chat' | 'plan' | 'improve' | 'judge';

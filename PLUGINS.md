@@ -62,6 +62,7 @@ Throwing an `Error` also reports a failure, and the model sees the message.
 |---|---|---|
 | `label` | `name` | Name shown in the UI, e.g. `Search`. |
 | `readOnly` | `false` | Set `true` if the tool never changes anything. Only read-only tools run in plan mode, `/improve` and `/judge`. |
+| `keywords` | none | Words that point at the tool, e.g. `['judge']`. When a message uses one ("judge whether…", "judging"), the model is told the tool fits and decides for itself whether to call it. Typing `@tool_name` asks for a tool outright. |
 | `describe(args)` | first string argument | Text shown next to the label, e.g. the file path. |
 | `parameters` | no arguments | A JSON Schema object describing the arguments. |
 
@@ -145,6 +146,11 @@ The popup is filterable: `tab` or the left/right arrows move between **all**, **
 and **command**, and the number keys `1`-`4` jump straight to one. The entry under the cursor is
 described at the bottom of the popup; `enter` installs or uninstalls it and `esc` goes back.
 
+Entries show three states. **install** copies the plugin into the plugins folder; **installed**
+means that file is there and `enter` removes it again; **loaded** means the plugin already
+runs from somewhere else — say you started with `--plugin plugins` — so there is nothing to
+install and `enter` only says where it came from.
+
 ## Code judges
 
 Two bundled plugins check code with a **decision model** instead of a chat model. You describe
@@ -188,7 +194,7 @@ unconfigured only when you actually call it. Settings live beside the plugins in
 
 ## More
 
-- **Types:** if you write plugins in TypeScript or want autocomplete, `import {definePlugin} from '@chasekek/toolcode/plugin'` and wrap your export in it. Doing this is optional.
+- **Types:** if you write plugins in TypeScript or want autocomplete, `import {definePlugin} from 'toolcode/plugin'` and wrap your export in it. Doing this is optional.
 - **Setup code:** `export default` can also be a function (async is fine) that returns the plugin, which is useful for setup work.
 - **Folders:** a plugin can be a folder with an `index.js`. A folder without one is a grouping folder, so you can sort plugins into `~/.toolcode/plugins/providers/` and `~/.toolcode/plugins/tools/`. Files and folders starting with `.` or `_` are ignored.
 - **Errors:** a plugin that throws while loading is skipped, and the error is shown when TOOLCODE starts. It never stops the app.

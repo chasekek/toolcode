@@ -29,6 +29,7 @@ const pluginPaths = {
 	plugins: ['plugins', 'missing-plugin.js'],
 	agent: ['test/fixtures/scripted-provider.mjs'],
 	'agent-skip': ['test/fixtures/scripted-provider.mjs'],
+	'marketplace-loaded': ['plugins'],
 	...(workspace && {[scenario]: ['test/fixtures/workspace-provider.mjs']}),
 }[scenario];
 const plugins = pluginPaths ? await loadPlugins(pluginPaths.map(p => path.resolve(p)), {builtinDir: false}) : undefined;
@@ -79,6 +80,13 @@ if (scenario === 'plugins') {
 	await type('loworld'); await key('\r', 400); show('hello');
 	await type('/marketplace'); await key('\r', 400); await key('\r', 600); show('uninstalled');
 	await key('\x1b', 400); await type('/helloworld'); await key('\r', 400); show('after uninstall');
+} else if (scenario === 'marketplace-loaded') {
+	// Started with --plugin plugins: the catalog copies are already registered, so every
+	// row must read "loaded" and pressing enter must explain itself instead of colliding.
+	await type('/marketplace'); await key('\r', 400); show('marketplace');
+	await key('\r', 600); show('install refused');
+	await key('\t', 300); show('filter tools');
+	await key('\x1b', 300); show('closed');
 } else if (scenario === 'auth') {
 	await type('/auth'); await key('\r'); show('auth list');
 	await key('\r'); await type('sk-or-secret'); show('auth typing');
@@ -86,6 +94,11 @@ if (scenario === 'plugins') {
 	// "/auth <provider>" opens straight into key entry; esc backs out to the list.
 	await type('/auth openrouter'); await key('\r'); await key('\x1b'); await key('d'); show('auth removed');
 	await key('\x1b'); await type('/auth nope'); await key('\r'); show('auth unknown');
+} else if (scenario === 'orchestrate') {
+	// Run with TOOLCODE_CONFIG_FILE pointing Claude Code at a missing path, so detection is deterministic.
+	await type('/orchestrate'); await key('\r', 1500); show('orchestrator on');
+	await type('/agents'); await key('\r', 1500); show('agents');
+	await type('/orchestrate'); await key('\r', 300); show('orchestrator off');
 } else if (scenario === 'main') {
 	await type('/'); show('slash menu');
 	await type('pl'); await key('\t'); show('tab complete /pl');

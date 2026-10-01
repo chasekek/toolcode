@@ -1,20 +1,29 @@
 import {useEffect, useMemo, useState} from 'react';
 import {Box, Text} from 'ink';
 import {useKeys} from '../hooks/useKeys.js';
-import type {CatalogEntry} from '../../plugins/marketplace.js';
+import type {CatalogEntry, CatalogState} from '../../plugins/marketplace.js';
 import {windowStart} from '../layout.js';
+import {isMouseInput} from '../mouse.js';
 import {useTheme} from '../theme.js';
 import {ListRow} from './ListRow.js';
 import {Modal} from './Modal.js';
-import {useTick} from './Spinner.js';
+import {SpinnerIcon} from './Spinner.js';
 
 type Category = CatalogEntry['category'] | 'all';
 
 const FILTERS: Category[] = ['all', 'tool', 'provider', 'command'];
 
+/** Row label and the key hint for it, per catalog state. */
+const STATE_VIEW: Record<CatalogState, {row: string; hint: string}> = {
+	available: {row: 'install', hint: 'install'},
+	installed: {row: 'installed', hint: 'uninstall'},
+	loaded: {row: 'loaded', hint: 'already loaded'},
+};
+
 interface Props {
 	entries: CatalogEntry[];
-	installed: (entry: CatalogEntry) => boolean;
+	/** Whether an entry is installable, installed, or loaded from outside the plugins folder. */
+	state: (entry: CatalogEntry) => CatalogState;
 	width: number;
 	/** Tallest the popup may be. */
 	maxHeight: number;
@@ -23,18 +32,39 @@ interface Props {
 	onClose: () => void;
 }
 
-// Rows around the list: header, tagline, tabs, gaps, detail pane, status line, borders.
-const CHROME_ROWS = 13;
+// Rows around the list: borders, header, tagline, tabs, divider and status line. The
+// detail pane below the list is counted separately, since it grows with the description.
+const CHROME_ROWS = 10;
+// Columns the panel's own borders and padding take off the popup width.
+const INNER_COLUMNS = 4;
+
+/** Lines `text` takes at `width`, so the detail pane is never cut mid-sentence. */
+function wrappedLines(text: string, width: number): number {
+	const limit = Math.max(1, width);
+	let lines = 1;
+	let used = 0;
+	for (const word of text.split(/\s+/).filter(Boolean)) {
+		if (word.length > limit) {
+			// A single long word breaks again at the edge.
+			lines += Math.ceil(word.length / limit);
+			used = word.length % limit;
+		} else if (used + 1 + word.length > limit && used > 0) {
+			lines++;
+			used = word.length;
+		} else {
+			used += (used === 0 ? 0 : 1) + word.length;
+		}
+	}
+	return lines;
+}
 
 /** /marketplace: the bundled plugin catalog in a large popup over the layout. */
-export function MarketplaceScreen({entries, installed, width, maxHeight, onToggle, onClose}: Props) {
+export function MarketplaceScreen({entries, state, width, maxHeight, onToggle, onClose}: Props) {
 	const {colors, symbols} = useTheme();
 	const [filter, setFilter] = useState<Category>('all');
 	const [index, setIndex] = useState(0);
 	const [working, setWorking] = useState<string | null>(null);
 	const [status, setStatus] = useState<{text: string; ok: boolean} | null>(null);
-	// Slow tick drives the gentle pulse in the header so the screen never sits dead still.
-	const tick = useTick(140);
 
 	const visible = useMemo(() => (filter === 'all' ? entries : entries.filter(e => e.category === filter)), [entries, filter]);
 	const counts = useMemo(() => {
@@ -47,9 +77,12 @@ export function MarketplaceScreen({entries, installed, width, maxHeight, onToggl
 	useEffect(() => setIndex(0), [filter]);
 
 	const selected = visible[index];
-	const installedCount = entries.filter(installed).length;
-	const height = Math.max(Math.min(maxHeight, entries.length + CHROME_ROWS), Math.min(maxHeight, CHROME_ROWS + 3));
-	const listRows = Math.max(1, height - CHROME_ROWS);
+	const selectedState = selected ? state(selected) : 'available';
+	const installedCount = entries.filter(e => state(e) === 'installed').length;
+	// One line for the detail title, then the description; the list takes what is left.
+	const detailRows = 1 + (selected ? wrappedLines(selected.description, width - INNER_COLUMNS) : 0);
+	const listRows = Math.max(1, Math.min(visible.length, maxHeight - CHROME_ROWS - detailRows));
+	const height = Math.min(maxHeight, CHROME_ROWS + detailRows + listRows);
 	const start = windowStart(visible.length, listRows, index);
 
 	const categoryIcons: Record<CatalogEntry['category'], string> = {
@@ -59,7 +92,7 @@ export function MarketplaceScreen({entries, installed, width, maxHeight, onToggl
 	};
 
 	const toggle = (entry: CatalogEntry) => {
-		setWorking(installed(entry) ? `Uninstalling ${entry.name}` : `Installing ${entry.name}`);
+		setWorking(state(entry) === 'installed' ? `Uninstalling ${entry.name}` : `Installing ${entry.name}`);
 		setStatus(null);
 		onToggle(entry)
 			.then(text => setStatus({text, ok: true}))
@@ -68,8 +101,10 @@ export function MarketplaceScreen({entries, installed, width, maxHeight, onToggl
 	};
 
 	useKeys((input, key) => {
-		if (working) return;
+		// Closing outranks everything, including a toggle that never settles: a plugin whose
+		// import hangs must not leave the user stuck in this popup with no way out.
 		if (key.escape || (key.ctrl && input === 'c')) return onClose();
+		if (working || isMouseInput(input)) return;
 		if (key.rightArrow || key.tab) {
 			return setFilter(f => FILTERS[(FILTERS.indexOf(f) + 1) % FILTERS.length]!);
 		}
@@ -86,9 +121,6 @@ export function MarketplaceScreen({entries, installed, width, maxHeight, onToggl
 		}
 	});
 
-	// The header mark breathes between filled and hollow, so an idle screen still has motion.
-	const mark = tick % 2 === 0 ? symbols.marketplace : symbols.bullet;
-
 	return (
 		<Modal
 			title="Marketplace"
@@ -103,12 +135,12 @@ export function MarketplaceScreen({entries, installed, width, maxHeight, onToggl
 			footer={
 				<Text color={colors.muted}>
 					{symbols.arrowUpDown} move {symbols.dot} {symbols.keyTab} filter {symbols.dot} {symbols.keyEnter}{' '}
-					{selected && installed(selected) ? 'uninstall' : 'install'} {symbols.dot} esc back
+					{STATE_VIEW[selectedState].hint} {symbols.dot} esc back
 				</Text>
 			}
 		>
 			<Box>
-				<Text color={colors.accent}>{mark} </Text>
+				<Text color={colors.accent}>{symbols.marketplace} </Text>
 				<Text bold color={colors.accent}>
 					MARKETPLACE
 				</Text>
@@ -135,7 +167,8 @@ export function MarketplaceScreen({entries, installed, width, maxHeight, onToggl
 				{visible.length === 0 && <Text color={colors.muted}>Nothing in this category yet.</Text>}
 				{visible.slice(start, start + listRows).map((entry, i) => {
 					const active = start + i === index;
-					const isOn = installed(entry);
+					const entryState = state(entry);
+					const on = entryState !== 'available';
 					return (
 						<ListRow key={entry.id} selected={active}>
 							<Box width={1} flexShrink={0}>
@@ -150,8 +183,8 @@ export function MarketplaceScreen({entries, installed, width, maxHeight, onToggl
 								</Text>
 							</Box>
 							<Box flexShrink={0} width={12}>
-								<Text color={isOn ? colors.success : active ? colors.selectionText : colors.muted}>
-									{isOn ? `${symbols.check} installed` : `${symbols.dot} install`}
+								<Text color={on ? colors.success : active ? colors.selectionText : colors.muted}>
+									{on ? `${symbols.check} ${STATE_VIEW[entryState].row}` : `${symbols.dot} ${STATE_VIEW[entryState].row}`}
 								</Text>
 							</Box>
 						</ListRow>
@@ -162,7 +195,7 @@ export function MarketplaceScreen({entries, installed, width, maxHeight, onToggl
 			<Box height={1} overflow="hidden" marginTop={1}>
 				<Text color={colors.border}>{symbols.box.horizontal.repeat(Math.max(0, width - 4))}</Text>
 			</Box>
-			<Box flexDirection="column" height={3} overflow="hidden">
+			<Box flexDirection="column" height={detailRows} overflow="hidden">
 				{selected && (
 					<>
 						<Text wrap="truncate-end">
@@ -170,7 +203,7 @@ export function MarketplaceScreen({entries, installed, width, maxHeight, onToggl
 							<Text bold>{selected.name}</Text>
 							<Text color={colors.muted}>
 								{' '}
-								{symbols.dot} {selected.category}
+								{symbols.dot} {selected.category} {symbols.dot} {STATE_VIEW[selectedState].row}
 							</Text>
 						</Text>
 						<Text color={colors.muted} wrap="wrap">
@@ -183,7 +216,7 @@ export function MarketplaceScreen({entries, installed, width, maxHeight, onToggl
 			<Box height={1}>
 				{working ? (
 					<Text color={colors.accent}>
-						{symbols.spinner[tick % symbols.spinner.length]} {working}
+						<SpinnerIcon color={colors.accent} /> {working}
 						{symbols.ellipsis}
 					</Text>
 				) : (

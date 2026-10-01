@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {render} from 'ink';
+import {loadConfig} from './agents/config.js';
 import {loadPlugins, PLUGIN_DIR} from './plugins/loader.js';
 import {App, type ExitSummary} from './ui/App.js';
 import {captureConsole} from './ui/console.js';
@@ -27,11 +28,13 @@ Options:
       --no-mouse       Leave the mouse to the terminal, e.g. for selecting text
       --plugin <path>  Load a plugin file or folder (repeatable)
       --no-plugins     Skip plugins in ${PLUGIN_DIR}
+      --orchestrator   Start in orchestrator mode: plan the work and delegate it to Claude Code
 
 Plugins in ${PLUGIN_DIR} load automatically.
 
 Environment:
-  OPENROUTER_API_KEY  API key for OpenRouter (or save one with /auth)`);
+  OPENROUTER_API_KEY   API key for OpenRouter (or save one with /auth)
+  TOOLCODE_CONFIG_FILE Delegation settings (default ~/.toolcode/config.json); see DELEGATION.md`);
 	process.exit(0);
 }
 
@@ -94,7 +97,8 @@ function printSummary({turns, files}: ExitSummary) {
 process.stdout.write(ENTER_SCREEN);
 releaseConsole = captureConsole();
 // Ctrl+C is handled by the app: it clears input, interrupts, or asks to confirm exit.
-const app = render(<App initialSettings={settings} plugins={plugins} />, {exitOnCtrlC: false, patchConsole: false});
+const initialMode = args.includes('--orchestrator') || loadConfig().orchestrator.enabled ? 'orchestrate' : 'default';
+const app = render(<App initialSettings={settings} plugins={plugins} initialMode={initialMode} />, {exitOnCtrlC: false, patchConsole: false});
 try {
 	const summary = (await app.waitUntilExit()) as ExitSummary | undefined;
 	restoreTerminal();

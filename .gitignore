@@ -1,2 +1,5 @@
 node_modules/
 dist/
+
+# third-party prompt dump, local reference only
+assets/systemprompts/

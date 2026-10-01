@@ -34,6 +34,10 @@ export function normalizeTool(def: PluginTool): Tool {
 	}
 	if (typeof def.description !== 'string' || !def.description) throw new Error(`Tool "${def.name}" needs a description.`);
 	if (typeof def.run !== 'function') throw new Error(`Tool "${def.name}" needs a run(args, ctx) function.`);
+	const keywords = def.keywords ?? [];
+	if (!Array.isArray(keywords) || keywords.some(k => typeof k !== 'string' || !k.trim())) {
+		throw new Error(`Tool "${def.name}" keywords must be an array of non-empty strings.`);
+	}
 
 	return {
 		name: def.name,
@@ -41,6 +45,7 @@ export function normalizeTool(def: PluginTool): Tool {
 		description: def.description,
 		parameters: def.parameters ?? {type: 'object', properties: {}},
 		readOnly: def.readOnly ?? false,
+		keywords: keywords.map(k => k.trim().toLowerCase()),
 		describe: args => {
 			if (def.describe) return String(def.describe(args) ?? '');
 			const first = Object.values(args).find(v => typeof v === 'string');

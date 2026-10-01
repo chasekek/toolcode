@@ -422,6 +422,7 @@ export default {
 			name: 'jeff_judge',
 			label: 'Jeff judge',
 			readOnly: true, // only reads and asks, so it also runs in plan mode, /improve and /judge
+			keywords: ['judge', 'jeff'],
 			description:
 				'Check code with a Jeff model running locally through llama.cpp or Ollama. Sends the code and the task as a ' +
 				'state plus four typed questions — correct, safe to run, worst issue, verdict — and returns probabilities you ' +

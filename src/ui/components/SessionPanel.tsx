@@ -73,9 +73,9 @@ export function SessionPanel({width, height, focused, compact, cwd, providerName
 						</Text>
 					</Field>
 					<Field label="Mode">
-						{mode === 'plan' ? (
+						{mode !== 'default' ? (
 							<Text color={colors.accent} bold>
-								{symbols.brand} plan
+								{symbols.brand} {mode === 'plan' ? 'plan' : 'orchestrator'}
 							</Text>
 						) : (
 							<Text color={colors.muted}>default</Text>

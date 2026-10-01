@@ -1,5 +1,5 @@
 {
-  "name": "@chasekek/toolcode",
+  "name": "toolcode",
   "version": "0.0.2",
   "description": "TOOLCODE - a terminal coding agent with bring-your-own model provider",
   "type": "module",
@@ -17,7 +17,10 @@
     "typecheck": "tsc --noEmit",
     "smoke": "npm run build && node scripts/ui-smoke.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "publish:npm": "npm publish",
+    "publish:github": "node scripts/publish-github.mjs",
+    "publish:all": "npm run publish:npm && npm run publish:github"
   },
   "engines": {
     "node": ">=20"
@@ -29,7 +32,8 @@
   },
   "homepage": "https://github.com/chasekek/toolcode#readme",
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "license": "MIT",
   "dependencies": {
@@ -48,5 +52,13 @@
       "default": "./dist/plugin.js"
     },
     "./package.json": "./package.json"
-  }
+  },
+  "keywords": [
+    "cli",
+    "coding-agent",
+    "ai",
+    "tui",
+    "openrouter",
+    "ollama"
+  ]
 }

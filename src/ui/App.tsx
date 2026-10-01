@@ -4,16 +4,19 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Box, Text, useApp, useStdout} from 'ink';
 import {useKeys} from './hooks/useKeys.js';
 import {useSyncState} from './hooks/useSyncState.js';
+import {describeAgents} from '../agents/status.js';
 import {getCommand} from '../core/commands.js';
 import type {AssistantMessage, Mode, Settings} from '../core/types.js';
 import type {PluginLoadReport} from '../plugins/loader.js';
-import {install, installPath, isInstalled, readCatalog, uninstall, type CatalogEntry} from '../plugins/marketplace.js';
+import {catalogPath, catalogState, install, installPath, readCatalog, uninstall, type CatalogEntry} from '../plugins/marketplace.js';
 import type {LoadedPlugin} from '../plugins/types.js';
 import {removeStoredKey, setStoredKey} from '../providers/auth.js';
 import {refreshOpenRouterModels} from '../providers/openrouter.js';
+import {loadModelChoice, saveModelChoice} from '../providers/preferences.js';
 import {defaultProvider, findModel, getApiKey, getProvider, keySource, providers} from '../providers/registry.js';
 import type {Provider} from '../providers/types.js';
 import {VERSION} from '../version.js';
+import {displayPath} from '../tools/paths.js';
 import {changedFiles, toolCalls, type FileChange} from './activity.js';
 import {parseCommand} from './commands.js';
 import {onConsole} from './console.js';
@@ -80,13 +83,22 @@ function activityLabel(message: AssistantMessage | undefined): string {
 interface Props {
 	initialSettings: Settings;
 	plugins?: PluginLoadReport;
+	/** Start in orchestrator mode (--orchestrator, or the config). */
+	initialMode?: Mode;
 }
 
-export function App({initialSettings, plugins}: Props) {
+export function App({initialSettings, plugins, initialMode = 'default'}: Props) {
 	const {exit} = useApp();
 	const {stdout} = useStdout();
 	const {columns, rows} = useTerminalSize();
 	const [selection, setSelection] = useState(() => {
+		// Last pick wins, as long as its provider is still around. OpenRouter's model list
+		// is refreshed after startup, so its ids can't be checked yet and are trusted.
+		const saved = loadModelChoice();
+		const savedProvider = saved && getProvider(saved.providerId);
+		if (saved && savedProvider && (savedProvider.id === 'openrouter' || savedProvider.models.some(m => m.id === saved.model))) {
+			return saved;
+		}
 		const initial = defaultProvider();
 		return {providerId: initial.id, model: initial.models[0]!.id};
 	});
@@ -98,13 +110,16 @@ export function App({initialSettings, plugins}: Props) {
 			return [];
 		}
 	}, []);
+	// What the catalog can offer right now. The same plugin may already be loaded from
+	// elsewhere (--plugin, a dev checkout), which checking the plugins folder alone misses.
+	const catalogStateOf = useCallback((entry: CatalogEntry) => catalogState(entry, loadedPlugins), [loadedPlugins]);
 	// The selected provider can disappear when its plugin is uninstalled.
 	const provider = getProvider(selection.providerId) ?? defaultProvider();
 	const model = selection.model;
 	const modelLabel = provider.models.find(m => m.id === model)?.label ?? model;
 	const apiKey = getApiKey(provider);
 	const keySet = apiKey !== undefined;
-	const [mode, setMode] = useState<Mode>('default');
+	const [mode, setMode] = useState<Mode>(initialMode);
 	const [settings, setSettings] = useState(initialSettings);
 	const [popup, setPopup] = useState<Popup>(null);
 	const [focus, setFocus] = useState<FocusId>('prompt');
@@ -186,6 +201,7 @@ export function App({initialSettings, plugins}: Props) {
 
 	const selectModel = (next: Provider, modelId: string, label: string) => {
 		setSelection({providerId: next.id, model: modelId});
+		saveModelChoice({providerId: next.id, model: modelId});
 		const needsKey = getApiKey(next) === undefined;
 		chat.notify(
 			needsKey ? 'warning' : 'success',
@@ -218,7 +234,13 @@ export function App({initialSettings, plugins}: Props) {
 	};
 
 	const toggleInstall = async (entry: CatalogEntry): Promise<string> => {
-		if (isInstalled(entry)) {
+		const current = catalogState(entry, loadedPlugins);
+		if (current === 'loaded') {
+			// It already runs from its own file; a second copy would only collide.
+			const source = loadedPlugins.find(p => path.resolve(p.file) === path.resolve(catalogPath(entry)))!;
+			return `Already loaded from ${displayPath(process.cwd(), source.file)}; remove it there to install.`;
+		}
+		if (current === 'installed') {
 			const loaded = loadedPlugins.find(p => path.resolve(p.file) === path.resolve(installPath(entry)));
 			uninstall(entry, loaded);
 			setLoadedPlugins(list => list.filter(p => p !== loaded));
@@ -309,6 +331,29 @@ export function App({initialSettings, plugins}: Props) {
 					chat.notify('info', next === 'plan' ? 'Plan mode on: TOOLCODE will plan without changing files.' : 'Plan mode off.');
 				}
 				break;
+			case '/orchestrate':
+				if (args) {
+					setMode('orchestrate');
+					setChatTop(null);
+					void chat.send({prompt: args, display: input, kind: 'chat', orchestrator: true});
+				} else {
+					const next = mode === 'orchestrate' ? 'default' : 'orchestrate';
+					setMode(next);
+					if (next === 'default') chat.notify('info', 'Orchestrator mode off.');
+					else {
+						void describeAgents().then(({available, text}) =>
+							chat.notify(
+								available ? 'info' : 'warning',
+								`Orchestrator mode on: TOOLCODE plans the work and hands subtasks to delegated agents.
+${text}`,
+							),
+						);
+					}
+				}
+				break;
+			case '/agents':
+				void describeAgents(mode === 'orchestrate').then(({available, text}) => chat.notify(available ? 'info' : 'warning', text));
+				break;
 			case '/improve':
 				setChatTop(null);
 				void chat.send({prompt: args, display: input, kind: 'improve'});
@@ -378,7 +423,7 @@ export function App({initialSettings, plugins}: Props) {
 		const trimmed = text.trim();
 		if (trimmed.startsWith('/')) return runCommand(trimmed);
 		setChatTop(null);
-		void chat.send({prompt: trimmed, display: text, kind: mode === 'plan' ? 'plan' : 'chat'});
+		void chat.send({prompt: trimmed, display: text, kind: mode === 'plan' ? 'plan' : 'chat', orchestrator: mode === 'orchestrate'});
 	};
 
 	const prompt = usePrompt({
@@ -833,7 +878,7 @@ export function App({initialSettings, plugins}: Props) {
 						) : popup?.kind === 'marketplace' ? (
 							<MarketplaceScreen
 								entries={catalog}
-								installed={isInstalled}
+								state={catalogStateOf}
 								width={popupWidth(96)}
 								maxHeight={popupMaxHeight}
 								onToggle={toggleInstall}

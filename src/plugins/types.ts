@@ -33,6 +33,8 @@ export interface PluginTool {
 	label?: string;
 	/** Set to true if the tool never changes anything; it then also runs in plan mode. */
 	readOnly?: boolean;
+	/** Words that point at this tool, e.g. ["judge"]. A message using one makes the model consider it. */
+	keywords?: string[];
 	/** Summary of the arguments shown next to the label. Defaults to the first string argument. */
 	describe?: (args: Record<string, any>) => string;
 	/** Does the work. Throw an Error to report a failure to the model. */

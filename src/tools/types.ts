@@ -21,6 +21,8 @@ export interface AskQuestion {
 /** State that lives for the whole conversation and resets on /clear. */
 export interface Session {
 	todos: Todo[];
+	/** How often each delegated task was attempted, so a failing one isn't retried forever. */
+	delegationAttempts?: Record<string, number>;
 }
 
 export interface ToolContext {
@@ -35,6 +37,16 @@ export interface ToolContext {
 	 * or null if they skipped. Undefined when there is no interactive UI.
 	 */
 	ask?: (questions: AskQuestion[]) => Promise<string[] | null>;
+	/** How this turn runs; tools that coordinate other agents read it. */
+	turn?: TurnOptions;
+}
+
+/** Per-turn switches that change which tools are offered and how they behave. */
+export interface TurnOptions {
+	/** Orchestrator mode: TOOLCODE coordinates delegated agents rather than coding itself. */
+	orchestrator: boolean;
+	/** False when the user asked for one delegated agent at a time. */
+	parallel: boolean;
 }
 
 export interface ToolResult {
@@ -60,6 +72,18 @@ export interface Tool {
 	parameters: JsonSchema;
 	/** Read-only tools are the only ones offered in plan mode. */
 	readOnly: boolean;
+	/**
+	 * Lowercase words that point at this tool, e.g. ["judge"]. When the user's
+	 * message uses one, the system prompt suggests the tool; the model still decides.
+	 */
+	keywords?: string[];
+	/**
+	 * Hands work to another agent. Such tools are dropped from a turn whose
+	 * message says "don't delegate" or "do it yourself".
+	 */
+	delegation?: boolean;
+	/** Whether to offer the tool this turn; offered always when omitted. Must be cheap. */
+	available?(turn: TurnOptions): boolean;
 	/** One-line argument summary shown next to the label. */
 	describe(args: Record<string, unknown>): string;
 	run(args: Record<string, unknown>, ctx: ToolContext): Promise<ToolResult>;

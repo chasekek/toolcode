@@ -1,7 +1,9 @@
+import {delegationIntent} from '../agents/intent.js';
+import {agents} from '../agents/registry.js';
 import type {ChatMessage, ModelToolCall, Provider} from '../providers/types.js';
 import {getTool, toolsFor} from '../tools/registry.js';
 import {resolveInWorkspace} from '../tools/paths.js';
-import type {AskQuestion, Session, ToolResult} from '../tools/types.js';
+import type {AskQuestion, Session, ToolResult, TurnOptions} from '../tools/types.js';
 import {AbortError} from './abort.js';
 import {isReadOnlyTurn, systemPrompt, userPrompt} from './prompts.js';
 import type {StreamEvent, TurnKind} from './types.js';
@@ -26,6 +28,8 @@ export interface AgentTurn {
 	session?: Session;
 	/** Lets the ask tool reach the user; omitted when there is no interactive UI. */
 	ask?: (questions: AskQuestion[]) => Promise<string[] | null>;
+	/** Orchestrator mode: coordinate delegated agents instead of doing all the work directly. */
+	orchestrator?: boolean;
 }
 
 function parseArgs(raw: string): Record<string, unknown> {
@@ -47,7 +51,10 @@ function failure(error: unknown): ToolResult {
 export async function* runAgent(turn: AgentTurn): AsyncGenerator<StreamEvent> {
 	const {provider, history, signal, cwd} = turn;
 	const session = turn.session ?? {todos: []};
-	const tools = toolsFor(isReadOnlyTurn(turn.kind));
+	const intent = delegationIntent(turn.input, agents);
+	const options: TurnOptions = {orchestrator: turn.orchestrator === true, parallel: !intent.noParallel};
+	// "Do it yourself" is honoured by not offering delegation at all, not by asking nicely.
+	const tools = toolsFor(isReadOnlyTurn(turn.kind), options).filter(t => !(intent.forbid && t.delegation));
 	const specs = tools.map(({name, description, parameters}) => ({name, description, parameters}));
 	history.push({role: 'user', content: userPrompt(turn.kind, turn.input)});
 
@@ -59,7 +66,7 @@ export async function* runAgent(turn: AgentTurn): AsyncGenerator<StreamEvent> {
 			const stream = provider.stream({
 				model: turn.model,
 				apiKey: turn.apiKey,
-				messages: [{role: 'system', content: systemPrompt(turn.kind, cwd, tools)}, ...history],
+				messages: [{role: 'system', content: systemPrompt(turn.kind, cwd, tools, turn.input, {orchestrator: options.orchestrator, intent})}, ...history],
 				tools: specs,
 				signal,
 			});
@@ -105,7 +112,7 @@ export async function* runAgent(turn: AgentTurn): AsyncGenerator<StreamEvent> {
 					result = failure(new Error(`Tool "${call.name}" is not available${tool ? ' in this read-only turn' : ''}.`));
 				} else {
 					try {
-						result = await tool.run(args, {cwd, signal, session, ask: turn.ask, resolvePath: file => resolveInWorkspace(cwd, file)});
+						result = await tool.run(args, {cwd, signal, session, ask: turn.ask, turn: options, resolvePath: file => resolveInWorkspace(cwd, file)});
 					} catch (error) {
 						result = failure(error);
 					}

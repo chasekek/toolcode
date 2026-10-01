@@ -10,6 +10,9 @@ provider, executes tool calls against a sandboxed workspace, and renders the res
   all file access use Node built-ins (`node:fs`, `node:path`, `node:url`).
 - **Provider-agnostic** — OpenRouter ships built-in; Ollama / llama.cpp / anything OpenAI-compatible
   arrives via drop-in plugins (see `PLUGINS.md`).
+- **Delegation** — the `delegate` / `delegate_tasks` tools hand tasks to external coding CLIs
+  (Claude Code first) through `src/agents/`; orchestrator mode makes TOOLCODE a coordinator.
+  See `DELEGATION.md`.
 - **Demo fallback** — with no API key set, the app transparently streams from `src/providers/demo.ts`
   instead of failing, so the UI is always explorable.
 
@@ -63,6 +66,7 @@ CLI flags (src/cli.tsx)
 | `src/providers/` | `Provider` contract, registry, `openrouter.ts`, generic SSE client `openaiCompatible.ts`, offline `demo.ts` |
 | `src/tools/` | Built-in tools (`readFile`, `writeFile`, `deleteFile`, `todoWrite`, `ask`), `registry.ts`, path safety `paths.ts` |
 | `src/ui/` | Ink app. `App.tsx`, `theme.tsx`, `layout.ts` (screen geometry), `activity.ts` (tool calls, changed files), `highlight.ts` (syntax colors), `mouse.ts` (SGR reports), `console.ts` (plugin logs to notices), `editor.ts` (pure text buffer), `commands.ts` (slash commands), `components/`, `hooks/` |
+| `src/agents/` | Delegated coding CLIs: `AgentProvider` contract (`types.ts`), `claudeCode.ts`, registry, `process.ts` (spawn/timeout/kill), `git.ts` (read-only change tracking), `delegate.ts` (task prompt, result format), `orchestrate.ts` (task DAG scheduler), `intent.ts` ("use Claude Code" / "do it yourself"), `config.ts` (`~/.toolcode/config.json`) |
 | `src/plugins/` | `loader.ts` (discovery + dynamic import), `normalize.ts` (validation/defaults), `types.ts` |
 | `test/` | `*.test.mjs` — Node native runner, imports from `dist/` |
 | `scripts/` | `ui-smoke.mjs` — headless TTY harness driving Ink with mock streams |
@@ -84,7 +88,7 @@ npm run build && node --test test/todos.test.mjs
 
 # Named smoke scenario; args are terminal width, scenario, terminal height (default 40)
 node scripts/ui-smoke.mjs 100 panels 30
-# main | plugins | agent | agent-skip | overlays | edge | ascii | error | marketplace | auth
+# main | plugins | agent | agent-skip | overlays | edge | ascii | error | marketplace | marketplace-loaded | auth | orchestrate
 # panels | scroll | mouse | narrow   (these four run the workspace fixture in a scratch dir)
 
 # Try the bundled example plugins
@@ -170,8 +174,10 @@ Plugin tools should guard `if (ctx.ask)` — it is undefined outside the interac
 | `src/ui/hooks/useChat.ts` | Conversation state, abort controllers, batched streaming, `ask` bridging. |
 | `src/ui/hooks/usePrompt.ts` | The prompt editor and slash menu; rendering is left to `App` so the menu can float. |
 | `src/ui/theme.tsx` | Color/symbol/box-drawing tokens, the brand gradient, `detectUnicode()`. |
-| `src/plugin.ts` | Public `definePlugin` / `defineTool` / `defineProvider` helpers (`@chasekek/toolcode/plugin`). |
+| `src/plugin.ts` | Public `definePlugin` / `defineTool` / `defineProvider` helpers (`toolcode/plugin`). |
 | `PLUGINS.md` | Authoritative plugin authoring guide. |
+| `DELEGATION.md` | Claude Code delegation and orchestrator mode: usage, permissions, config. |
+| `src/agents/claudeCode.ts` | Claude Code invocation: locate, flags (prompt on stdin), stream-json parsing, status mapping. |
 
 ## Runtime & Tooling Preferences
 
@@ -184,6 +190,10 @@ Plugin tools should guard `if (ctx.ask)` — it is undefined outside the interac
   typechecked — keep them syntactically valid by hand.
 - **Dist is derived**: `dist/` is gitignored but tests and the `bin` entry read from it. Never
   commit or hand-edit `dist/`.
+- Delegated agents never get more than the user approved: shell commands need config `"allow"` or
+  an `ask` approval, `bypassPermissions` is never passed, git is only read (`GIT_READ_ONLY` in
+  `src/agents/git.ts`), and `TOOLCODE_DELEGATION_DEPTH` stops recursive delegation. Tests use fake
+  runners and agents; the suite must not need Claude Code installed.
 - Plugins run arbitrary code with user permissions. TOOLCODE deliberately never auto-loads plugins
   from the project CWD — keep that property when touching `src/plugins/loader.ts`.
 

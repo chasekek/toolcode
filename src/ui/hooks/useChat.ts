@@ -20,6 +20,8 @@ export interface ChatRequest {
 	/** Text shown in the transcript for the user turn. */
 	display: string;
 	kind: TurnKind;
+	/** Run the turn in orchestrator mode. */
+	orchestrator?: boolean;
 }
 
 interface Options {
@@ -150,6 +152,7 @@ export function useChat({provider, apiKey, model, simulateErrors}: Options) {
 							signal: controller.signal,
 							session: session.current,
 							ask,
+							orchestrator: request.orchestrator,
 						})
 					: demoStream(request.prompt, {
 							kind: request.kind,

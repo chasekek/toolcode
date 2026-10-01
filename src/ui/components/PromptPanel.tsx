@@ -28,7 +28,8 @@ export function PromptPanel({width, height, state, focused, away, busy, mode, hi
 	const lines = state.value.split('\n');
 	const {line: cursorLine, col: cursorCol} = editor.position(state);
 	const start = windowStart(lines.length, rows, cursorLine);
-	const color = mode === 'plan' ? colors.accent : undefined;
+	const color = mode === 'default' ? undefined : colors.accent;
+	const modeTitle = mode === 'plan' ? 'plan mode' : mode === 'orchestrate' ? 'orchestrator' : undefined;
 	const placeholder = hint
 		? hint
 		: away
@@ -40,7 +41,7 @@ export function PromptPanel({width, height, state, focused, away, busy, mode, hi
 					: `Ask anything${symbols.ellipsis}`;
 
 	return (
-		<Panel title={mode === 'plan' ? `Prompt ${symbols.dot} plan mode` : 'Prompt'} focused={focused} color={color} width={width} height={height} status={status}>
+		<Panel title={modeTitle ? `Prompt ${symbols.dot} ${modeTitle}` : 'Prompt'} focused={focused} color={color} width={width} height={height} status={status}>
 			{lines.slice(start, start + rows).map((text, i) => {
 				const index = start + i;
 				return (
