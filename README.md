@@ -9,6 +9,8 @@ well you see, i want to make a modular tui coding harness that feels amazing to 
 
 PLEASE STAR THIS PROJECT
 
+
+### looking for developers ALWAYS, please make pull requests
 ## install
 ```bash
 npm install -g toolcode
