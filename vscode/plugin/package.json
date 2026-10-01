@@ -1,0 +1,181 @@
+{
+  "name": "toolcode-vscode",
+  "displayName": "TOOLCODE",
+  "description": "Run the TOOLCODE terminal coding agent inside VS Code",
+  "version": "0.0.1",
+  "publisher": "chasekek",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chasekek/toolcode.git",
+    "directory": "vscode/plugin"
+  },
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "main": "./out/extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      {
+        "command": "toolcode.open",
+        "title": "Open TOOLCODE",
+        "category": "TOOLCODE",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "toolcode.openNew",
+        "title": "Open New TOOLCODE Session",
+        "category": "TOOLCODE"
+      },
+      {
+        "command": "toolcode.openOrchestrator",
+        "title": "Open TOOLCODE in Orchestrator Mode",
+        "category": "TOOLCODE"
+      },
+      {
+        "command": "toolcode.addReference",
+        "title": "Add to TOOLCODE Prompt",
+        "category": "TOOLCODE"
+      },
+      {
+        "command": "toolcode.setApiKey",
+        "title": "Set OpenRouter API Key",
+        "category": "TOOLCODE"
+      },
+      {
+        "command": "toolcode.clearApiKey",
+        "title": "Clear OpenRouter API Key",
+        "category": "TOOLCODE"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "toolcode.open",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "toolcode.addReference",
+          "group": "toolcode"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "toolcode.addReference",
+          "when": "!explorerResourceIsFolder",
+          "group": "toolcode"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "toolcode.open",
+        "key": "ctrl+alt+t",
+        "mac": "cmd+alt+t"
+      },
+      {
+        "command": "toolcode.addReference",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "TOOLCODE",
+      "properties": {
+        "toolcode.path": {
+          "type": "string",
+          "default": "toolcode",
+          "markdownDescription": "Command that starts TOOLCODE. Either a command on `PATH` (default `toolcode`) or a path to `dist/cli.js`, which is run with `node`."
+        },
+        "toolcode.location": {
+          "type": "string",
+          "enum": [
+            "editor",
+            "panel"
+          ],
+          "default": "editor",
+          "description": "Open TOOLCODE in an editor tab beside the current file, or in the terminal panel."
+        },
+        "toolcode.ascii": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Use plain ASCII symbols (`--ascii`)."
+        },
+        "toolcode.mouse": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Wheel scrolling and click to focus. Turn off (`--no-mouse`) to select text with the mouse."
+        },
+        "toolcode.orchestrator": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Always start in orchestrator mode (`--orchestrator`)."
+        },
+        "toolcode.plugins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Extra plugin files or folders, each passed as `--plugin <path>`. Relative paths resolve against the workspace folder."
+        },
+        "toolcode.loadUserPlugins": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Load plugins from `~/.toolcode/plugins`. Off passes `--no-plugins`."
+        },
+        "toolcode.env": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "description": "Extra environment variables for the TOOLCODE process."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "toolcode",
+          "title": "TOOLCODE",
+          "icon": "media/toolcode.svg"
+        }
+      ]
+    },
+    "views": {
+      "toolcode": [
+        {
+          "id": "toolcode.home",
+          "name": "TOOLCODE"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "toolcode.home",
+        "contents": "Run the TOOLCODE coding agent on this workspace.\n[Open TOOLCODE](command:toolcode.open)\n[New Session](command:toolcode.openNew)\n[Orchestrator Mode](command:toolcode.openOrchestrator)\nAdd the current file or selection to the prompt with [Add to Prompt](command:toolcode.addReference).\n[Set OpenRouter API Key](command:toolcode.setApiKey)"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "watch": "tsc -p . --watch",
+    "test": "npm run build && node --test test/*.test.cjs",
+    "vscode:prepublish": "npm run build",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.6.0"
+  }
+}
